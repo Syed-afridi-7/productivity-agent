@@ -54,48 +54,11 @@ class MyAccessibilityService : AccessibilityService() {
                         } catch (_: Throwable) {
                             println("[$TAG] Gaming daily quota (30m) exhausted! Returning home.")
                         }
-                        performGlobalAction(GLOBAL_ACTION_HOME)
-                        NativeAgentBus.emit(
-                            mapOf(
-                                "type" to "APP_BLOCKED",
-                                "packageName" to (currentTrackedPackage ?: "unknown_game"),
-                                "reason" to "GAMING_QUOTA_EXHAUSTED",
-                                "timestamp" to System.currentTimeMillis()
-                            )
-                        )
-                        activeTrackingMode = ActiveTrackingMode.NONE
+                        kickToHome(currentTrackedPackage ?: "unknown_game", "GAMING_QUOTA_EXHAUSTED")
                     }
                 }
-                ActiveTrackingMode.REELS -> {
-                    AutonomousQuotaManager.recordReelsTick(1)
-                    val snapshot = AutonomousQuotaManager.getSnapshot()
-                    NativeAgentBus.emit(
-                        mapOf(
-                            "type" to "QUOTA_TICK",
-                            "category" to "REELS",
-                            "gamingUsed" to snapshot.gamingSecondsUsed,
-                            "reelsUsed" to snapshot.reelsSecondsUsed,
-                            "timestamp" to System.currentTimeMillis()
-                        )
-                    )
-                    if (AutonomousQuotaManager.isReelsExhausted()) {
-                        try {
-                            Log.w(TAG, "Reels daily quota (20m) exhausted! Returning home.")
-                        } catch (_: Throwable) {
-                            println("[$TAG] Reels daily quota (20m) exhausted! Returning home.")
-                        }
-                        performGlobalAction(GLOBAL_ACTION_HOME)
-                        NativeAgentBus.emit(
-                            mapOf(
-                                "type" to "APP_BLOCKED",
-                                "packageName" to (currentTrackedPackage ?: "unknown_reels"),
-                                "reason" to "REELS_QUOTA_EXHAUSTED",
-                                "timestamp" to System.currentTimeMillis()
-                            )
-                        )
-                        activeTrackingMode = ActiveTrackingMode.NONE
-                    }
-                }
+                // REELS tracking removed — Reels/Shorts are now instant zero-tolerance blocked
+                ActiveTrackingMode.REELS,
                 ActiveTrackingMode.NONE -> {}
             }
             trackingHandler.postDelayed(this, 1000)
@@ -109,6 +72,32 @@ class MyAccessibilityService : AccessibilityService() {
         trackingHandler.post(trackingTicker)
     }
 
+    /**
+     * Packages requiring sub-screen inspection on EVERY window event.
+     * These must NEVER be skipped by lastPackageName deduplication because
+     * internal tab switches (e.g. Search → Shorts) share the same package.
+     */
+    private val SUB_SCREEN_PACKAGES = setOf(
+        "com.instagram.android",
+        "com.google.android.youtube",
+        "com.facebook.katana"
+    )
+
+    /** Centralised Home kickout — always resets tracking state. */
+    private fun kickToHome(pkgName: String, reason: String) {
+        performGlobalAction(GLOBAL_ACTION_HOME)
+        lastPackageName = null                       // ← fixes second-launch bypass
+        activeTrackingMode = ActiveTrackingMode.NONE
+        NativeAgentBus.emit(
+            mapOf(
+                "type" to "APP_BLOCKED",
+                "packageName" to pkgName,
+                "reason" to reason,
+                "timestamp" to System.currentTimeMillis()
+            )
+        )
+    }
+
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
         if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
@@ -117,23 +106,14 @@ class MyAccessibilityService : AccessibilityService() {
             val contentDesc = event.contentDescription?.toString()
             val text = event.text?.joinToString(" ")
 
-            // 1. Zero-Tolerance Hard Block (Telegram, Netflix, Prime Video, Hotstar, Disney+)
+            // 1. Zero-Tolerance Hard Block (Telegram, Netflix, Music apps, etc.)
             if (AutonomousQuotaManager.isHardBlocked(pkgName)) {
                 try {
                     Log.w(TAG, "Hard-blocked app detected: $pkgName. Kicking to home.")
                 } catch (_: Throwable) {
                     println("[$TAG] Hard-blocked app detected: $pkgName. Kicking to home.")
                 }
-                performGlobalAction(GLOBAL_ACTION_HOME)
-                NativeAgentBus.emit(
-                    mapOf(
-                        "type" to "APP_BLOCKED",
-                        "packageName" to pkgName,
-                        "reason" to "HARD_BLOCKED",
-                        "timestamp" to System.currentTimeMillis()
-                    )
-                )
-                activeTrackingMode = ActiveTrackingMode.NONE
+                kickToHome(pkgName, "HARD_BLOCKED")
                 return
             }
 
@@ -146,26 +126,12 @@ class MyAccessibilityService : AccessibilityService() {
                 return
             }
 
-            // 3. Reels / Shorts Discrimination (Instagram / YouTube / Facebook)
+            // 3. Reels / Shorts — INSTANT zero-tolerance block (no quota, immediate kickout)
             if (SubScreenClassifier.isReelsOrShorts(pkgName, className, contentDesc, text)) {
-                if (AutonomousQuotaManager.isReelsExhausted()) {
-                    try {
-                        Log.w(TAG, "Reels quota exhausted! Blocking $pkgName.")
-                    } catch (_: Throwable) {}
-                    performGlobalAction(GLOBAL_ACTION_HOME)
-                    NativeAgentBus.emit(
-                        mapOf(
-                            "type" to "APP_BLOCKED",
-                            "packageName" to pkgName,
-                            "reason" to "REELS_QUOTA_EXHAUSTED",
-                            "timestamp" to System.currentTimeMillis()
-                        )
-                    )
-                    activeTrackingMode = ActiveTrackingMode.NONE
-                } else {
-                    currentTrackedPackage = pkgName
-                    activeTrackingMode = ActiveTrackingMode.REELS
-                }
+                try {
+                    Log.w(TAG, "Reels/Shorts detected in $pkgName. Instant block.")
+                } catch (_: Throwable) {}
+                kickToHome(pkgName, "REELS_INSTANT_BLOCK")
                 return
             }
 
@@ -175,16 +141,7 @@ class MyAccessibilityService : AccessibilityService() {
                     try {
                         Log.w(TAG, "Gaming quota exhausted! Blocking $pkgName.")
                     } catch (_: Throwable) {}
-                    performGlobalAction(GLOBAL_ACTION_HOME)
-                    NativeAgentBus.emit(
-                        mapOf(
-                            "type" to "APP_BLOCKED",
-                            "packageName" to pkgName,
-                            "reason" to "GAMING_QUOTA_EXHAUSTED",
-                            "timestamp" to System.currentTimeMillis()
-                        )
-                    )
-                    activeTrackingMode = ActiveTrackingMode.NONE
+                    kickToHome(pkgName, "GAMING_QUOTA_EXHAUSTED")
                 } else {
                     currentTrackedPackage = pkgName
                     activeTrackingMode = ActiveTrackingMode.GAMING
@@ -205,6 +162,15 @@ class MyAccessibilityService : AccessibilityService() {
             }
 
             activeTrackingMode = ActiveTrackingMode.NONE
+
+            // Skip dedup for social apps that need sub-screen inspection every time
+            if (pkgName in SUB_SCREEN_PACKAGES) {
+                // Already handled above (DM / Reels checks). If we reach here,
+                // user is on a non-Reels, non-DM screen (e.g. YouTube search).
+                // Allow it — and reset lastPackageName so future events are re-evaluated.
+                lastPackageName = pkgName
+                return
+            }
 
             if (pkgName == lastPackageName) return
             lastPackageName = pkgName
@@ -233,7 +199,7 @@ class MyAccessibilityService : AccessibilityService() {
                 if (Settings.canDrawOverlays(this)) {
                     showOverlay(pkgName)
                 } else {
-                    performGlobalAction(GLOBAL_ACTION_HOME)
+                    kickToHome(pkgName, "BLACKLISTED")
                 }
             }
         }

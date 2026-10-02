@@ -63,12 +63,23 @@ class AutonomousQuotaManagerTest {
     @Test
     fun testHardBlockedPackages() {
         val hardBlocked = listOf(
+            // Messaging
             "org.telegram.messenger",
             "org.thunderdog.challegram",
+            // Streaming
             "com.netflix.mediaclient",
             "com.amazon.avod.thirdpartyclient",
             "in.startv.hotstar",
-            "com.disney.disneyplus"
+            "com.disney.disneyplus",
+            // Music
+            "com.spotify.music",
+            "com.google.android.apps.youtube.music",
+            "com.jio.media.jiobeats",
+            "com.bsbportal.music",
+            "com.gaana",
+            "com.apple.android.music",
+            "com.amazon.mp3",
+            "com.soundcloud.android"
         )
 
         for (pkg in hardBlocked) {

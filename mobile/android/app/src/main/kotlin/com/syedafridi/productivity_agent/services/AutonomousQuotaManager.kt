@@ -19,12 +19,23 @@ object AutonomousQuotaManager {
     const val MAX_REELS_SECONDS = 1200L  // 20 minutes
 
     val HARD_BLOCKED_PACKAGES = setOf(
+        // Messaging (no productive use)
         "org.telegram.messenger",
         "org.thunderdog.challegram",
+        // Streaming / Movies
         "com.netflix.mediaclient",
         "com.amazon.avod.thirdpartyclient",
         "in.startv.hotstar",
-        "com.disney.disneyplus"
+        "com.disney.disneyplus",
+        // Music apps (zero tolerance)
+        "com.spotify.music",
+        "com.google.android.apps.youtube.music",
+        "com.jio.media.jiobeats",
+        "com.bsbportal.music",
+        "com.gaana",
+        "com.apple.android.music",
+        "com.amazon.mp3",
+        "com.soundcloud.android"
     )
 
     private const val PREFS_NAME = "autonomous_quotas"
