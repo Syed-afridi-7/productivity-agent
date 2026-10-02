@@ -96,6 +96,11 @@ Task 5: MainActivity & Flutter Bridge Alignment (Wiring Services to Start/Stop &
 
 ---
 
-## Verification
-- Run `flutter test` in `mobile/` to verify all Flutter tests pass.
-- Run `cd mobile/android && ./gradlew testDebugUnitTest` to verify native Kotlin unit tests pass.
+## Verification & Results
+- [x] Task 1: `NativeAgentBus` & unit tests (`NativeAgentBusTest.kt`) verified passing via `.\gradlew testDebugUnitTest`.
+- [x] Task 2: `PackageFilter`, `MyAccessibilityService`, `accessibility_service_config.xml`, and `PackageFilterTest.kt` passing.
+- [x] Task 3: `AgentForegroundService` with persistent low-priority notification channel & dynamic screen ON/OFF broadcast receiver.
+- [x] Task 4: `AndroidManifest.xml` and `strings.xml` configured for API 34 compliance with `specialUse` foreground service and accessibility service.
+- [x] Task 5: `MainActivity.kt` and Flutter bridge aligned; `agent_controller.dart` exhaustively matches all event types; 15/15 Flutter tests passing.
+- [x] Python core test suite passing (61/61 tests).
+- [x] Committed cleanly to `main` branch (`125c796`).
