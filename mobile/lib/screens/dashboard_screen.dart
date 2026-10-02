@@ -54,6 +54,67 @@ class DashboardScreen extends StatelessWidget {
     );
   }
 
+  Widget _buildQuotaCard({
+    required String title,
+    required String usageText,
+    required double progress,
+    required Color accentColor,
+    required IconData icon,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: CyberTheme.cardBg,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: CyberTheme.borderSubtle),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Icon(icon, size: 18, color: accentColor),
+                  const SizedBox(width: 8),
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      color: CyberTheme.textPrimary,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+              Text(
+                usageText,
+                style: TextStyle(
+                  color: accentColor,
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: progress,
+              backgroundColor: CyberTheme.bgOled,
+              valueColor: AlwaysStoppedAnimation<Color>(
+                progress >= 1.0 ? CyberTheme.crimsonNeon : accentColor,
+              ),
+              minHeight: 6,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
@@ -70,6 +131,49 @@ class DashboardScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  // 24/7 Autonomous Guardian Active Badge
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: CyberTheme.neonEmerald.withOpacity(0.08),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: CyberTheme.neonEmerald.withOpacity(0.4)),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 8,
+                          height: 8,
+                          decoration: const BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: CyberTheme.neonEmerald,
+                            boxShadow: [
+                              BoxShadow(
+                                color: CyberTheme.neonEmerald,
+                                blurRadius: 4,
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        const Expanded(
+                          child: Text(
+                            '24/7 GUARDIAN: ACTIVE',
+                            style: TextStyle(
+                              color: CyberTheme.neonEmerald,
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 1.2,
+                            ),
+                          ),
+                        ),
+                        const Icon(Icons.shield_outlined, color: CyberTheme.neonEmerald, size: 18),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 12),
+
                   // Accessibility Warning Banner
                   if (!controller.isAccessibilityGranted)
                     Container(
@@ -101,21 +205,64 @@ class DashboardScreen extends StatelessWidget {
                       ),
                     ),
 
-                  const SizedBox(height: 16),
-
                   // Hero Status Ring
                   StatusRing(status: status),
 
-                  const SizedBox(height: 32),
+                  const SizedBox(height: 24),
 
-                  // Duration Selector
+                  // Daily Autonomous Quotas Section
+                  _buildQuotaCard(
+                    title: 'Gaming Budget',
+                    usageText: '${status.gamingMinutesUsed} / ${status.gamingLimitMinutes}m',
+                    progress: status.gamingProgress,
+                    accentColor: CyberTheme.electricCyan,
+                    icon: Icons.sports_esports_outlined,
+                  ),
+
+                  const SizedBox(height: 10),
+
+                  _buildQuotaCard(
+                    title: 'Reels & Shorts',
+                    usageText: '${status.reelsMinutesUsed} / ${status.reelsLimitMinutes}m',
+                    progress: status.reelsProgress,
+                    accentColor: CyberTheme.amberGlow,
+                    icon: Icons.video_library_outlined,
+                  ),
+
+                  const SizedBox(height: 10),
+
+                  // Whitelisted Features Card
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: CyberTheme.cardBg,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: CyberTheme.borderSubtle.withOpacity(0.5)),
+                    ),
+                    child: Row(
+                      children: const [
+                        Icon(Icons.check_circle_outline, color: CyberTheme.neonEmerald, size: 16),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'DMs & Study: UNLIMITED (Chat & Search unrestricted)',
+                            style: TextStyle(color: CyberTheme.textDim, fontSize: 11),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 24),
+
+                  // Duration Selector for manual focus sprints
                   DurationPicker(
                     selectedMinutes: controller.selectedDurationMinutes,
                     isEnabled: !isRunning,
                     onDurationSelected: (mins) => controller.selectDuration(mins),
                   ),
 
-                  const SizedBox(height: 28),
+                  const SizedBox(height: 20),
 
                   // Primary Action Button
                   SizedBox(
@@ -157,7 +304,7 @@ class DashboardScreen extends StatelessWidget {
                     ),
                   ),
 
-                  const SizedBox(height: 36),
+                  const SizedBox(height: 28),
 
                   // Daily Metrics Row
                   Row(

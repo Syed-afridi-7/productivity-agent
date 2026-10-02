@@ -100,6 +100,16 @@ class AgentController extends ChangeNotifier {
         notifyListeners();
         break;
 
+      case AgentEventType.quotaTick:
+        final gaming = event.gamingUsed;
+        final reels = event.reelsUsed;
+        _status = _status.copyWith(
+          gamingSecondsUsed: gaming ?? _status.gamingSecondsUsed,
+          reelsSecondsUsed: reels ?? _status.reelsSecondsUsed,
+        );
+        notifyListeners();
+        break;
+
       case AgentEventType.appOpened:
       case AgentEventType.screenStateChanged:
       case AgentEventType.unknown:

@@ -12,6 +12,7 @@ import androidx.core.content.ContextCompat
 import com.syedafridi.productivity_agent.bus.AgentFocusState
 import com.syedafridi.productivity_agent.bus.NativeAgentBus
 import com.syedafridi.productivity_agent.services.AgentForegroundService
+import com.syedafridi.productivity_agent.services.AutonomousQuotaManager
 import com.syedafridi.productivity_agent.services.BlacklistManager
 
 class MainActivity : FlutterActivity() {
@@ -62,6 +63,7 @@ class MainActivity : FlutterActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
 
+        AutonomousQuotaManager.init(applicationContext)
         NativeAgentBus.addListener(busListener)
 
         // EventChannel for live streaming
@@ -140,6 +142,7 @@ class MainActivity : FlutterActivity() {
                 }
 
                 "getAgentStatus" -> {
+                    val snapshot = AutonomousQuotaManager.getSnapshot()
                     result.success(
                         mapOf(
                             "isRunning" to isRunning,
@@ -147,7 +150,12 @@ class MainActivity : FlutterActivity() {
                             "remainingSeconds" to remainingSeconds,
                             "todayFocusMinutes" to todayFocusMinutes,
                             "distractionsBlocked" to distractionsBlocked,
-                            "nudgesSent" to nudgesSent
+                            "nudgesSent" to nudgesSent,
+                            "gamingSecondsUsed" to snapshot.gamingSecondsUsed,
+                            "gamingLimitSeconds" to snapshot.gamingLimitSeconds,
+                            "reelsSecondsUsed" to snapshot.reelsSecondsUsed,
+                            "reelsLimitSeconds" to snapshot.reelsLimitSeconds,
+                            "is24x7Active" to true
                         )
                     )
                 }

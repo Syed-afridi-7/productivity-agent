@@ -2,6 +2,8 @@ package com.syedafridi.productivity_agent.services
 
 import android.accessibilityservice.AccessibilityService
 import android.graphics.PixelFormat
+import android.os.Handler
+import android.os.Looper
 import android.provider.Settings
 import android.util.Log
 import android.view.Gravity
@@ -9,10 +11,15 @@ import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
 import com.syedafridi.productivity_agent.bus.AgentFocusState
 import com.syedafridi.productivity_agent.bus.NativeAgentBus
-import com.syedafridi.productivity_agent.services.BlacklistManager
 import com.syedafridi.productivity_agent.ui.ShieldOverlayView
 
 class MyAccessibilityService : AccessibilityService() {
+
+    enum class ActiveTrackingMode {
+        NONE,
+        GAMING,
+        REELS
+    }
 
     companion object {
         private const val TAG = "ProductivityAgent"
@@ -22,24 +29,185 @@ class MyAccessibilityService : AccessibilityService() {
     private var currentOverlayView: ShieldOverlayView? = null
     private var windowManager: WindowManager? = null
 
+    private var activeTrackingMode = ActiveTrackingMode.NONE
+    private var currentTrackedPackage: String? = null
+    private val trackingHandler = Handler(Looper.getMainLooper())
+
+    private val trackingTicker = object : Runnable {
+        override fun run() {
+            when (activeTrackingMode) {
+                ActiveTrackingMode.GAMING -> {
+                    AutonomousQuotaManager.recordGamingTick(1)
+                    val snapshot = AutonomousQuotaManager.getSnapshot()
+                    NativeAgentBus.emit(
+                        mapOf(
+                            "type" to "QUOTA_TICK",
+                            "category" to "GAMING",
+                            "gamingUsed" to snapshot.gamingSecondsUsed,
+                            "reelsUsed" to snapshot.reelsSecondsUsed,
+                            "timestamp" to System.currentTimeMillis()
+                        )
+                    )
+                    if (AutonomousQuotaManager.isGamingExhausted()) {
+                        try {
+                            Log.w(TAG, "Gaming daily quota (30m) exhausted! Returning home.")
+                        } catch (_: Throwable) {
+                            println("[$TAG] Gaming daily quota (30m) exhausted! Returning home.")
+                        }
+                        performGlobalAction(GLOBAL_ACTION_HOME)
+                        NativeAgentBus.emit(
+                            mapOf(
+                                "type" to "APP_BLOCKED",
+                                "packageName" to (currentTrackedPackage ?: "unknown_game"),
+                                "reason" to "GAMING_QUOTA_EXHAUSTED",
+                                "timestamp" to System.currentTimeMillis()
+                            )
+                        )
+                        activeTrackingMode = ActiveTrackingMode.NONE
+                    }
+                }
+                ActiveTrackingMode.REELS -> {
+                    AutonomousQuotaManager.recordReelsTick(1)
+                    val snapshot = AutonomousQuotaManager.getSnapshot()
+                    NativeAgentBus.emit(
+                        mapOf(
+                            "type" to "QUOTA_TICK",
+                            "category" to "REELS",
+                            "gamingUsed" to snapshot.gamingSecondsUsed,
+                            "reelsUsed" to snapshot.reelsSecondsUsed,
+                            "timestamp" to System.currentTimeMillis()
+                        )
+                    )
+                    if (AutonomousQuotaManager.isReelsExhausted()) {
+                        try {
+                            Log.w(TAG, "Reels daily quota (20m) exhausted! Returning home.")
+                        } catch (_: Throwable) {
+                            println("[$TAG] Reels daily quota (20m) exhausted! Returning home.")
+                        }
+                        performGlobalAction(GLOBAL_ACTION_HOME)
+                        NativeAgentBus.emit(
+                            mapOf(
+                                "type" to "APP_BLOCKED",
+                                "packageName" to (currentTrackedPackage ?: "unknown_reels"),
+                                "reason" to "REELS_QUOTA_EXHAUSTED",
+                                "timestamp" to System.currentTimeMillis()
+                            )
+                        )
+                        activeTrackingMode = ActiveTrackingMode.NONE
+                    }
+                }
+                ActiveTrackingMode.NONE -> {}
+            }
+            trackingHandler.postDelayed(this, 1000)
+        }
+    }
+
     override fun onServiceConnected() {
         super.onServiceConnected()
         windowManager = getSystemService(WINDOW_SERVICE) as? WindowManager
+        AutonomousQuotaManager.init(applicationContext)
+        trackingHandler.post(trackingTicker)
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
         if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
             val pkgName = event.packageName?.toString() ?: return
-            if (!PackageFilter.isTargetUserApp(pkgName, packageName)) return
-            if (pkgName == lastPackageName) return
+            val className = event.className?.toString()
+            val contentDesc = event.contentDescription?.toString()
+            val text = event.text?.joinToString(" ")
 
-            lastPackageName = pkgName
-            try {
-                Log.i(TAG, "App switch detected: $pkgName")
-            } catch (_: Throwable) {
-                println("[$TAG] App switch detected: $pkgName")
+            // 1. Zero-Tolerance Hard Block (Telegram, Netflix, Prime Video, Hotstar, Disney+)
+            if (AutonomousQuotaManager.isHardBlocked(pkgName)) {
+                try {
+                    Log.w(TAG, "Hard-blocked app detected: $pkgName. Kicking to home.")
+                } catch (_: Throwable) {
+                    println("[$TAG] Hard-blocked app detected: $pkgName. Kicking to home.")
+                }
+                performGlobalAction(GLOBAL_ACTION_HOME)
+                NativeAgentBus.emit(
+                    mapOf(
+                        "type" to "APP_BLOCKED",
+                        "packageName" to pkgName,
+                        "reason" to "HARD_BLOCKED",
+                        "timestamp" to System.currentTimeMillis()
+                    )
+                )
+                activeTrackingMode = ActiveTrackingMode.NONE
+                return
             }
+
+            // 2. Direct Messages & Chat Exception (Instagram / Facebook / Messaging)
+            if (SubScreenClassifier.isDirectMessage(pkgName, className, contentDesc)) {
+                try {
+                    Log.i(TAG, "Direct Message / Chat active in $pkgName. Allowed without penalty.")
+                } catch (_: Throwable) {}
+                activeTrackingMode = ActiveTrackingMode.NONE
+                return
+            }
+
+            // 3. Reels / Shorts Discrimination (Instagram / YouTube / Facebook)
+            if (SubScreenClassifier.isReelsOrShorts(pkgName, className, contentDesc, text)) {
+                if (AutonomousQuotaManager.isReelsExhausted()) {
+                    try {
+                        Log.w(TAG, "Reels quota exhausted! Blocking $pkgName.")
+                    } catch (_: Throwable) {}
+                    performGlobalAction(GLOBAL_ACTION_HOME)
+                    NativeAgentBus.emit(
+                        mapOf(
+                            "type" to "APP_BLOCKED",
+                            "packageName" to pkgName,
+                            "reason" to "REELS_QUOTA_EXHAUSTED",
+                            "timestamp" to System.currentTimeMillis()
+                        )
+                    )
+                    activeTrackingMode = ActiveTrackingMode.NONE
+                } else {
+                    currentTrackedPackage = pkgName
+                    activeTrackingMode = ActiveTrackingMode.REELS
+                }
+                return
+            }
+
+            // 4. Game Detection (30m daily quota)
+            if (SubScreenClassifier.isGame(this, pkgName)) {
+                if (AutonomousQuotaManager.isGamingExhausted()) {
+                    try {
+                        Log.w(TAG, "Gaming quota exhausted! Blocking $pkgName.")
+                    } catch (_: Throwable) {}
+                    performGlobalAction(GLOBAL_ACTION_HOME)
+                    NativeAgentBus.emit(
+                        mapOf(
+                            "type" to "APP_BLOCKED",
+                            "packageName" to pkgName,
+                            "reason" to "GAMING_QUOTA_EXHAUSTED",
+                            "timestamp" to System.currentTimeMillis()
+                        )
+                    )
+                    activeTrackingMode = ActiveTrackingMode.NONE
+                } else {
+                    currentTrackedPackage = pkgName
+                    activeTrackingMode = ActiveTrackingMode.GAMING
+                }
+                return
+            }
+
+            // 5. System Whitelist (Dialer, Contacts, ChatGPT, Browser Search)
+            if (SubScreenClassifier.isWhitelistedActivity(pkgName)) {
+                activeTrackingMode = ActiveTrackingMode.NONE
+                return
+            }
+
+            // 6. User-defined Focus Mode & Blacklist (if manual deep focus session is active)
+            if (!PackageFilter.isTargetUserApp(pkgName, packageName)) {
+                activeTrackingMode = ActiveTrackingMode.NONE
+                return
+            }
+
+            activeTrackingMode = ActiveTrackingMode.NONE
+
+            if (pkgName == lastPackageName) return
+            lastPackageName = pkgName
 
             NativeAgentBus.emit(
                 mapOf(
@@ -129,6 +297,7 @@ class MyAccessibilityService : AccessibilityService() {
     }
 
     override fun onDestroy() {
+        trackingHandler.removeCallbacks(trackingTicker)
         dismissOverlay()
         super.onDestroy()
     }

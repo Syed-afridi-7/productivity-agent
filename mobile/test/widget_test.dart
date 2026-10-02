@@ -79,6 +79,7 @@ void main() {
     expect(find.byKey(const Key('dashboard_settings_button')), findsOneWidget);
 
     // Tap START GUARDIAN
+    await tester.ensureVisible(find.text('START GUARDIAN'));
     await tester.tap(find.text('START GUARDIAN'));
     await tester.pumpAndSettle();
 
