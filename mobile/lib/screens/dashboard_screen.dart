@@ -18,7 +18,22 @@ class DashboardScreen extends StatelessWidget {
   PreferredSizeWidget _buildHeader(BuildContext context) {
     final isRunning = controller.status.isRunning;
     return AppBar(
-      title: const Text('⚡ PRODUCTIVITY AGENT'),
+      title: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(6),
+            child: Image.asset(
+              'assets/logo.png',
+              width: 24,
+              height: 24,
+              errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+            ),
+          ),
+          const SizedBox(width: 8),
+          const Text('⚡ PRODUCTIVITY AGENT'),
+        ],
+      ),
       actions: [
         Center(
           child: Container(
