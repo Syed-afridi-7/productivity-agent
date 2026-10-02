@@ -135,7 +135,11 @@
 ---
 
 ## Verification & Execution Protocol
-1. Run `./gradlew testDebugUnitTest` for all Kotlin unit tests.
-2. Run `flutter test` for all Flutter unit and widget tests.
-3. Run `python -m unittest discover -s tests -p "test_*.py"` to ensure core Python engine tests remain green.
-4. Stage and commit Phase 3 implementation.
+- [x] Task 1: `BlacklistManager`, `AgentFocusState`, and unit tests passing.
+- [x] Task 2: `ShieldOverlayView` programmatic OLED layout with 5s timer and buttons complete.
+- [x] Task 3: `MyAccessibilityService` overlay injection and Home fallback complete.
+- [x] Task 4: `MainActivity.kt` and Flutter bridge aligned with unit tests.
+- [x] Run `.\gradlew testDebugUnitTest` for all Kotlin unit tests (BUILD SUCCESSFUL).
+- [x] Run `flutter test` for all Flutter unit and widget tests (18/18 passed).
+- [x] Run `python -m unittest discover -s tests -p "test_*.py"` to ensure core Python engine tests remain green (61/61 passed).
+- [x] Stage and commit Phase 3 implementation (`ea46ae7`).
