@@ -12,9 +12,13 @@ void main() {
   late AgentBridge bridge;
   late AgentController controller;
   bool isAgentRunning = false;
+  bool isOverlayGrantedMock = false;
+  bool openOverlaySettingsCalled = false;
 
   setUp(() {
     streamController = StreamController<dynamic>.broadcast();
+    isOverlayGrantedMock = false;
+    openOverlaySettingsCalled = false;
 
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(
@@ -38,6 +42,15 @@ void main() {
             };
           case 'isAccessibilityEnabled':
             return true;
+          case 'isOverlayPermissionEnabled':
+            return isOverlayGrantedMock;
+          case 'openOverlaySettings':
+            openOverlaySettingsCalled = true;
+            return null;
+          case 'updateBlacklist':
+            return true;
+          case 'getBlacklist':
+            return ['com.instagram.android'];
           default:
             return null;
         }
@@ -108,5 +121,24 @@ void main() {
     await pumpEventQueue();
 
     expect(controller.status.distractionsBlocked, equals(3));
+  });
+
+  test('AgentController refreshOverlayPermission and requestOverlayPermission update isOverlayGranted', () async {
+    isOverlayGrantedMock = false;
+    await controller.init();
+    expect(controller.isOverlayGranted, isFalse);
+
+    isOverlayGrantedMock = true;
+    await controller.refreshOverlayPermission();
+    expect(controller.isOverlayGranted, isTrue);
+
+    await controller.requestOverlayPermission();
+    expect(openOverlaySettingsCalled, isTrue);
+
+    final updateSuccess = await controller.updateBlacklist(['com.instagram.android']);
+    expect(updateSuccess, isTrue);
+
+    final blacklist = await controller.getBlacklist();
+    expect(blacklist, contains('com.instagram.android'));
   });
 }

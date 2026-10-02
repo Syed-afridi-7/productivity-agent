@@ -10,6 +10,7 @@ class AgentController extends ChangeNotifier {
   AgentStatus _status = const AgentStatus();
   int _selectedDurationMinutes = 25;
   bool _isAccessibilityGranted = true;
+  bool _isOverlayGranted = false;
   bool _isLoading = false;
 
   StreamSubscription<AgentEvent>? _streamSubscription;
@@ -23,6 +24,7 @@ class AgentController extends ChangeNotifier {
   AgentStatus get status => _status;
   int get selectedDurationMinutes => _selectedDurationMinutes;
   bool get isAccessibilityGranted => _isAccessibilityGranted;
+  bool get isOverlayGranted => _isOverlayGranted;
   bool get isLoading => _isLoading;
 
   Future<void> init() async {
@@ -31,6 +33,7 @@ class AgentController extends ChangeNotifier {
 
     try {
       _isAccessibilityGranted = await _bridge.isAccessibilityEnabled();
+      _isOverlayGranted = await _bridge.isOverlayPermissionEnabled();
       _status = await _bridge.getAgentStatus();
     } finally {
       _isLoading = false;
@@ -133,6 +136,23 @@ class AgentController extends ChangeNotifier {
 
   Future<void> requestAccessibility() async {
     await _bridge.openAccessibilitySettings();
+  }
+
+  Future<void> refreshOverlayPermission() async {
+    _isOverlayGranted = await _bridge.isOverlayPermissionEnabled();
+    notifyListeners();
+  }
+
+  Future<void> requestOverlayPermission() async {
+    await _bridge.openOverlaySettings();
+  }
+
+  Future<bool> updateBlacklist(List<String> packages) async {
+    return await _bridge.updateBlacklist(packages);
+  }
+
+  Future<List<String>> getBlacklist() async {
+    return await _bridge.getBlacklist();
   }
 
   @override

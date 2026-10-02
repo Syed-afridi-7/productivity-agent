@@ -37,6 +37,14 @@ void main() {
             return true;
           case 'openAccessibilitySettings':
             return null;
+          case 'isOverlayPermissionEnabled':
+            return true;
+          case 'openOverlaySettings':
+            return null;
+          case 'updateBlacklist':
+            return true;
+          case 'getBlacklist':
+            return ['com.instagram.android', 'com.twitter.android'];
           default:
             return null;
         }
@@ -79,5 +87,26 @@ void main() {
 
     await bridge.openAccessibilitySettings();
     expect(methodCalls.last.method, equals('openAccessibilitySettings'));
+  });
+
+  test('AgentBridge overlay permission checks and open settings', () async {
+    final isEnabled = await bridge.isOverlayPermissionEnabled();
+    expect(isEnabled, isTrue);
+    expect(methodCalls.last.method, equals('isOverlayPermissionEnabled'));
+
+    await bridge.openOverlaySettings();
+    expect(methodCalls.last.method, equals('openOverlaySettings'));
+  });
+
+  test('AgentBridge updateBlacklist and getBlacklist invoke channel properly', () async {
+    final list = ['com.instagram.android', 'com.twitter.android'];
+    final updateResult = await bridge.updateBlacklist(list);
+    expect(updateResult, isTrue);
+    expect(methodCalls.last.method, equals('updateBlacklist'));
+    expect(methodCalls.last.arguments, equals({'packages': list}));
+
+    final retrieved = await bridge.getBlacklist();
+    expect(retrieved, equals(list));
+    expect(methodCalls.last.method, equals('getBlacklist'));
   });
 }

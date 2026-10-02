@@ -9,8 +9,10 @@ import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodChannel
 import androidx.core.content.ContextCompat
+import com.syedafridi.productivity_agent.bus.AgentFocusState
 import com.syedafridi.productivity_agent.bus.NativeAgentBus
 import com.syedafridi.productivity_agent.services.AgentForegroundService
+import com.syedafridi.productivity_agent.services.BlacklistManager
 
 class MainActivity : FlutterActivity() {
     private val COMMAND_CHANNEL = "com.syedafridi.productivity_agent/commands"
@@ -45,6 +47,7 @@ class MainActivity : FlutterActivity() {
             } else if (isRunning && remainingSeconds <= 0) {
                 isRunning = false
                 currentState = "IDLE"
+                AgentFocusState.isFocusActive = false
                 val event = mapOf(
                     "type" to "STATE_CHANGED",
                     "from" to "DEEP_FOCUS",
@@ -82,6 +85,7 @@ class MainActivity : FlutterActivity() {
                     remainingSeconds = durationMinutes * 60
                     isRunning = true
                     currentState = "DEEP_FOCUS"
+                    AgentFocusState.isFocusActive = true
 
                     mainHandler.removeCallbacks(tickerRunnable)
                     mainHandler.postDelayed(tickerRunnable, 1000)
@@ -111,6 +115,7 @@ class MainActivity : FlutterActivity() {
                 "stopAgent" -> {
                     isRunning = false
                     currentState = "IDLE"
+                    AgentFocusState.isFocusActive = false
                     mainHandler.removeCallbacks(tickerRunnable)
 
                     val serviceIntent = Intent(this, AgentForegroundService::class.java).apply {
@@ -158,6 +163,29 @@ class MainActivity : FlutterActivity() {
                     }
                     startActivity(intent)
                     result.success(null)
+                }
+
+                "isOverlayPermissionEnabled" -> {
+                    result.success(Settings.canDrawOverlays(this))
+                }
+
+                "openOverlaySettings" -> {
+                    val intent = Intent(
+                        Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                        android.net.Uri.parse("package:$packageName")
+                    ).apply { flags = Intent.FLAG_ACTIVITY_NEW_TASK }
+                    startActivity(intent)
+                    result.success(null)
+                }
+
+                "updateBlacklist" -> {
+                    val packages = call.argument<List<String>>("packages") ?: emptyList()
+                    BlacklistManager.setBlacklist(packages)
+                    result.success(true)
+                }
+
+                "getBlacklist" -> {
+                    result.success(BlacklistManager.getBlacklist().toList())
                 }
 
                 else -> result.notImplemented()

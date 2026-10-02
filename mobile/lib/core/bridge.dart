@@ -74,6 +74,42 @@ class AgentBridge {
     }
   }
 
+  Future<bool> isOverlayPermissionEnabled() async {
+    try {
+      return await commandChannel.invokeMethod<bool>('isOverlayPermissionEnabled') ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<void> openOverlaySettings() async {
+    try {
+      await commandChannel.invokeMethod('openOverlaySettings');
+    } catch (_) {}
+  }
+
+  Future<bool> updateBlacklist(List<String> packages) async {
+    try {
+      return await commandChannel.invokeMethod<bool>(
+            'updateBlacklist',
+            {'packages': packages},
+          ) ??
+          false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<List<String>> getBlacklist() async {
+    try {
+      final result =
+          await commandChannel.invokeMethod<List<dynamic>>('getBlacklist');
+      return result?.map((e) => e.toString()).toList() ?? [];
+    } catch (_) {
+      return [];
+    }
+  }
+
   Stream<AgentEvent> get eventStream {
     return eventChannel.receiveBroadcastStream().map((dynamic event) {
       if (event is Map) {
