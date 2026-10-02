@@ -72,7 +72,19 @@ class CumulativeDistractionQuotaRule(BaseRule):
             name="CumulativeDistractionQuotaRule",
             description="Alerts when daily distraction limit is exceeded."
         )
-        self.alerted_today = False
+        self.last_alert_date: Optional[str] = None
+
+    @property
+    def alerted_today(self) -> bool:
+        today_str = time.strftime("%Y-%m-%d", time.localtime())
+        return self.last_alert_date == today_str
+
+    @alerted_today.setter
+    def alerted_today(self, value: bool) -> None:
+        if value:
+            self.last_alert_date = time.strftime("%Y-%m-%d", time.localtime())
+        else:
+            self.last_alert_date = None
 
     def evaluate(
         self,
@@ -82,8 +94,9 @@ class CumulativeDistractionQuotaRule(BaseRule):
         current_time: float
     ) -> List[Command]:
         limit_sec = config.get("max_daily_distraction_minutes", 45) * 60
-        if perception.daily_distraction_seconds >= limit_sec and not self.alerted_today:
-            self.alerted_today = True
+        today_str = time.strftime("%Y-%m-%d", time.localtime(current_time))
+        if perception.daily_distraction_seconds >= limit_sec and self.last_alert_date != today_str:
+            self.last_alert_date = today_str
             return [
                 Command(
                     command_id=f"cmd-{uuid.uuid4().hex[:8]}",
@@ -141,7 +154,19 @@ class NightWindDownRule(BaseRule):
             name="NightWindDownRule",
             description="Suggests winding down for sleep at night."
         )
-        self.prompted_today = False
+        self.last_alert_date: Optional[str] = None
+
+    @property
+    def prompted_today(self) -> bool:
+        today_str = time.strftime("%Y-%m-%d", time.localtime())
+        return self.last_alert_date == today_str
+
+    @prompted_today.setter
+    def prompted_today(self, value: bool) -> None:
+        if value:
+            self.last_alert_date = time.strftime("%Y-%m-%d", time.localtime())
+        else:
+            self.last_alert_date = None
 
     def evaluate(
         self,
@@ -154,14 +179,15 @@ class NightWindDownRule(BaseRule):
             return []
 
         local_time = time.localtime(current_time)
+        today_str = time.strftime("%Y-%m-%d", local_time)
         target_str = config.get("night_winddown_time", "22:30")
         try:
             target_h, target_m = map(int, target_str.split(":"))
         except Exception:
             target_h, target_m = 22, 30
 
-        if (local_time.tm_hour > target_h or (local_time.tm_hour == target_h and local_time.tm_min >= target_m)) and not self.prompted_today:
-            self.prompted_today = True
+        if (local_time.tm_hour > target_h or (local_time.tm_hour == target_h and local_time.tm_min >= target_m)) and self.last_alert_date != today_str:
+            self.last_alert_date = today_str
             return [
                 Command(
                     command_id=f"cmd-{uuid.uuid4().hex[:8]}",
@@ -217,7 +243,7 @@ class RuleEngine:
             cmds = rule.evaluate(current_state, perception, self.config, t)
             if cmds:
                 all_commands.extend(cmds)
-                if self.memory and rule.name == "BlacklistEnforcementRule":
+                if self.memory and isinstance(rule, BlacklistEnforcementRule):
                     self.memory.record_violation(
                         rule_name=rule.name,
                         app_name=perception.current_app,

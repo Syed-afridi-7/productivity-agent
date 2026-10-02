@@ -152,6 +152,54 @@ class TestRuleEngine(unittest.TestCase):
         cmds_late_repeat = self.engine.evaluate_all(AgentState.IDLE, perception, current_time=winddown_target + 60)
         self.assertEqual(len(cmds_late_repeat), 0)
 
+    def test_cumulative_distraction_quota_midnight_reset(self):
+        # Day 1
+        t1 = 1700000000.0
+        perception = PerceptionState(daily_distraction_seconds=1850)
+        cmds_day1 = self.engine.evaluate_all(AgentState.IDLE, perception, current_time=t1)
+        self.assertEqual(len(cmds_day1), 1)
+        self.assertEqual(cmds_day1[0].payload["title"], "Daily Distraction Quota Exceeded")
+
+        # Later same day -> suppressed
+        cmds_day1_later = self.engine.evaluate_all(AgentState.IDLE, perception, current_time=t1 + 3600)
+        self.assertEqual(len(cmds_day1_later), 0)
+
+        # Day 2 (+24h) -> should alert again for the new day
+        t2 = t1 + 86400.0
+        cmds_day2 = self.engine.evaluate_all(AgentState.IDLE, perception, current_time=t2)
+        self.assertEqual(len(cmds_day2), 1)
+        self.assertEqual(cmds_day2[0].payload["title"], "Daily Distraction Quota Exceeded")
+
+    def test_night_wind_down_midnight_reset(self):
+        now_struct = time.localtime()
+        day1_winddown = time.mktime((
+            now_struct.tm_year,
+            now_struct.tm_mon,
+            now_struct.tm_mday,
+            22,
+            35,
+            0,
+            now_struct.tm_wday,
+            now_struct.tm_yday,
+            now_struct.tm_isdst
+        ))
+        perception = PerceptionState()
+
+        # Day 1 trigger
+        cmds_day1 = self.engine.evaluate_all(AgentState.IDLE, perception, current_time=day1_winddown)
+        self.assertEqual(len(cmds_day1), 1)
+        self.assertEqual(cmds_day1[0].payload["title"], "Night Wind-Down")
+
+        # Day 1 later -> suppressed
+        cmds_day1_later = self.engine.evaluate_all(AgentState.IDLE, perception, current_time=day1_winddown + 600)
+        self.assertEqual(len(cmds_day1_later), 0)
+
+        # Day 2 (+24h) -> should trigger again
+        day2_winddown = day1_winddown + 86400.0
+        cmds_day2 = self.engine.evaluate_all(AgentState.IDLE, perception, current_time=day2_winddown)
+        self.assertEqual(len(cmds_day2), 1)
+        self.assertEqual(cmds_day2[0].payload["title"], "Night Wind-Down")
+
     def test_rule_engine_loads_from_config_file(self):
         import tempfile
         import json
@@ -174,3 +222,4 @@ class TestRuleEngine(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
