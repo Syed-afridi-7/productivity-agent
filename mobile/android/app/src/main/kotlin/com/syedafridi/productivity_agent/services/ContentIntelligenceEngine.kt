@@ -60,15 +60,24 @@ object ContentIntelligenceEngine {
 
     // ─── Unproductive Keywords (all lowercase) ───
     private val UNPRODUCTIVE_KEYWORDS = setOf(
-        "funny", "prank", "comedy", "standup", "roast", "reaction video",
+        // Music, Songs & Audio Entertainment
+        "music", "song", "songs", "audio", "track", "tracks", "official video",
+        "official music video", "music video", "lyrics", "lyric video", "album",
+        "full album", "single", "singer", "artist", "remix", "mashup", "cover song",
+        "acoustic cover", "concert", "live performance", "dj", "dj mix", "beat",
+        "beats", "lofi", "lo-fi", "chillhop", "pop music", "hip hop", "hip-hop",
+        "rap", "r&b", "rock music", "metal", "kpop", "k-pop", "edm", "trap beat",
+        "soundtrack", "ost", "bgm", "tune", "playlist", "radio", "band",
+        "guitar cover", "piano cover", "bass boosted", "slowed and reverb",
+        // Entertainment / Comedy / Casual Vlogs
+        "funny", "prank", "comedy", "standup", "roast", "reaction video", "reaction",
         "unboxing", "haul", "vlog", "daily vlog", "travel vlog", "asmr",
         "mukbang", "entertainment", "drama", "gossip", "celebrity",
-        "bollywood", "hollywood", "tollywood", "movie trailer", "teaser",
-        "song lyrics", "music video", "dance", "remix", "mashup",
-        "compilation", "fail compilation", "blooper", "top 10", "top 5",
+        "bollywood", "hollywood", "tollywood", "movie trailer", "teaser", "movie scene",
+        "dance", "compilation", "fail compilation", "blooper", "top 10", "top 5",
         "tier list", "ranking", "best of", "worst of", "challenge",
-        "tiktok", "meme", "satisfying", "oddly satisfying", "relaxing",
-        "lofi", "aesthetic", "story time", "grwm", "get ready with me",
+        "tiktok", "meme", "memes", "satisfying", "oddly satisfying", "relaxing",
+        "aesthetic", "story time", "grwm", "get ready with me",
         "dating", "relationship advice", "crush", "breakup", "zodiac",
         "horoscope", "astrology", "tarot", "gaming", "gameplay",
         "walkthrough", "playthrough", "lets play", "stream highlight",
@@ -96,10 +105,12 @@ object ContentIntelligenceEngine {
         "com.vivaldi.browser"
     )
 
-    // ─── YouTube activities that are inherently productive ───
-    private val YOUTUBE_PRODUCTIVE_ACTIVITIES = setOf(
+    // ─── YouTube activities / views that indicate searching ───
+    private val YOUTUBE_SEARCH_INDICATORS = setOf(
         "searchactivity",
-        "searchresultactivity"
+        "searchresultactivity",
+        "search_edit_text",
+        "search"
     )
 
     /**
@@ -115,13 +126,14 @@ object ContentIntelligenceEngine {
         packageName: String,
         contentDescription: String?,
         className: String?,
-        text: String?
+        text: String?,
+        hierarchyText: String? = null
     ): ContentVerdict {
         val classLower = className?.lowercase() ?: ""
 
-        // YouTube Search Activity is always productive (user is searching)
+        // YouTube Search Activity / Search views are treated as productive (user is looking for a topic)
         if (packageName == "com.google.android.youtube" &&
-            YOUTUBE_PRODUCTIVE_ACTIVITIES.any { classLower.contains(it) }) {
+            (YOUTUBE_SEARCH_INDICATORS.any { classLower.contains(it) })) {
             return ContentVerdict.PRODUCTIVE
         }
 
@@ -129,7 +141,8 @@ object ContentIntelligenceEngine {
         val combined = buildString {
             contentDescription?.let { append(it.lowercase()).append(" ") }
             text?.let { append(it.lowercase()).append(" ") }
-            className?.let { append(it.lowercase()) }
+            className?.let { append(it.lowercase()).append(" ") }
+            hierarchyText?.let { append(it.lowercase()).append(" ") }
         }.trim()
 
         if (combined.isEmpty()) return ContentVerdict.UNKNOWN

@@ -8,18 +8,20 @@ enum class GraceState {
 }
 
 /**
- * Manages the grace-period monitoring for content-intelligence decisions.
+ * Manages the timing for content-intelligence decisions.
  *
  * Flow:
- *  1. Content classified as UNKNOWN → startGracePeriod()
- *  2. During grace, if content becomes PRODUCTIVE → markProductive()
- *  3. If 60s expires with no productive signal → transition to WARNING_PHASE
- *  4. Warning overlay shown for 30s. If still no productive signal → kick out.
+ *  1. Content classified as UNKNOWN / loading → startGracePeriod() (3s buffer)
+ *  2. If content becomes explicitly PRODUCTIVE → markProductive() (unrestricted)
+ *  3. If 3s expires with no productive signal → transition to WARNING_PHASE
+ *  4. Warning overlay shown for 12s. If still no productive signal → kick out.
+ *  Total elapsed time for unproductive content: 15s max.
  */
 object ContentGraceMonitor {
 
-    const val GRACE_PERIOD_MS = 60_000L
-    const val WARNING_PERIOD_MS = 30_000L
+    const val BUFFER_PERIOD_MS = 3_000L               // 3s node loading buffer
+    const val GRACE_PERIOD_MS = BUFFER_PERIOD_MS      // Alias
+    const val WARNING_PERIOD_MS = 12_000L             // 12s visible countdown overlay
 
     var currentState: GraceState = GraceState.INACTIVE
         private set

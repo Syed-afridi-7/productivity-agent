@@ -23,6 +23,16 @@ class TestRuleEngine(unittest.TestCase):
             "default_break_duration_minutes": 5
         }
         self.engine = RuleEngine(config=self.config)
+        now_struct = time.localtime()
+        self.daytime = time.mktime((
+            now_struct.tm_year,
+            now_struct.tm_mon,
+            now_struct.tm_mday,
+            12, 0, 0,
+            now_struct.tm_wday,
+            now_struct.tm_yday,
+            now_struct.tm_isdst
+        ))
 
     def test_base_rule_is_abstract(self):
         with self.assertRaises(TypeError):
@@ -32,18 +42,18 @@ class TestRuleEngine(unittest.TestCase):
         perception = PerceptionState(current_app="com.instagram.android")
         
         # When in IDLE, blacklist should NOT fire enforcement
-        commands_idle = self.engine.evaluate_all(AgentState.IDLE, perception)
+        commands_idle = self.engine.evaluate_all(AgentState.IDLE, perception, current_time=self.daytime)
         self.assertEqual(len(commands_idle), 0)
 
         # When in DEEP_FOCUS, blacklist MUST fire FORCE_CLOSE and NOTIFY
-        commands_focus = self.engine.evaluate_all(AgentState.DEEP_FOCUS, perception)
+        commands_focus = self.engine.evaluate_all(AgentState.DEEP_FOCUS, perception, current_time=self.daytime)
         command_types = [c.command_type for c in commands_focus]
         self.assertIn(CommandType.FORCE_CLOSE, command_types)
         self.assertIn(CommandType.NOTIFY, command_types)
 
         # Non-blacklisted app in DEEP_FOCUS should NOT trigger
         safe_perception = PerceptionState(current_app="com.android.calculator2")
-        commands_safe = self.engine.evaluate_all(AgentState.DEEP_FOCUS, safe_perception)
+        commands_safe = self.engine.evaluate_all(AgentState.DEEP_FOCUS, safe_perception, current_time=self.daytime)
         self.assertEqual(len(commands_safe), 0)
 
     def test_blacklist_records_violation_in_memory(self):
@@ -63,19 +73,19 @@ class TestRuleEngine(unittest.TestCase):
     def test_cumulative_distraction_quota(self):
         # Under limit (30 mins = 1800s)
         perception_under = PerceptionState(daily_distraction_seconds=1700)
-        commands_under = self.engine.evaluate_all(AgentState.IDLE, perception_under)
+        commands_under = self.engine.evaluate_all(AgentState.IDLE, perception_under, current_time=self.daytime)
         self.assertEqual(len(commands_under), 0)
 
         # Exceed 30 mins (1800s)
         perception = PerceptionState(daily_distraction_seconds=1850)
-        commands = self.engine.evaluate_all(AgentState.IDLE, perception)
+        commands = self.engine.evaluate_all(AgentState.IDLE, perception, current_time=self.daytime)
         command_types = [c.command_type for c in commands]
         self.assertIn(CommandType.NOTIFY, command_types)
         notify_cmd = next(c for c in commands if c.command_type == CommandType.NOTIFY)
         self.assertEqual(notify_cmd.payload["title"], "Daily Distraction Quota Exceeded")
 
         # Second evaluation should not trigger again due to alerted_today flag
-        commands_second = self.engine.evaluate_all(AgentState.IDLE, perception)
+        commands_second = self.engine.evaluate_all(AgentState.IDLE, perception, current_time=self.daytime)
         notify_types_second = [c.command_type for c in commands_second if c.payload.get("title") == "Daily Distraction Quota Exceeded"]
         self.assertEqual(len(notify_types_second), 0)
 

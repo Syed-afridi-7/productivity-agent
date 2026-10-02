@@ -53,7 +53,7 @@ class ContentGraceMonitorTest {
     fun testGracePeriodExpiredAfterTimeout() {
         ContentGraceMonitor.startGracePeriodWithTimestamp(
             "com.google.android.youtube",
-            System.currentTimeMillis() - 61_000
+            System.currentTimeMillis() - 4_000 // > 3s buffer
         )
         assertTrue(ContentGraceMonitor.isGracePeriodExpired())
     }
@@ -62,7 +62,7 @@ class ContentGraceMonitorTest {
     fun testGracePeriodNotExpiredWithinTimeout() {
         ContentGraceMonitor.startGracePeriodWithTimestamp(
             "com.google.android.youtube",
-            System.currentTimeMillis() - 30_000
+            System.currentTimeMillis() - 1_000 // < 3s buffer
         )
         assertFalse(ContentGraceMonitor.isGracePeriodExpired())
     }
@@ -70,7 +70,7 @@ class ContentGraceMonitorTest {
     @Test
     fun testWarningPhaseExpiredAfterWarningTimeout() {
         ContentGraceMonitor.startWarningPhaseWithTimestamp(
-            System.currentTimeMillis() - 31_000
+            System.currentTimeMillis() - 13_000 // > 12s warning
         )
         assertTrue(ContentGraceMonitor.isWarningExpired())
     }

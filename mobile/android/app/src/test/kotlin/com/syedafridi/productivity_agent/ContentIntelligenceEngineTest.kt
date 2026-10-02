@@ -30,6 +30,56 @@ class ContentIntelligenceEngineTest {
     }
 
     @Test
+    fun testMusicVideoAndSongsDetectedAsUnproductive() {
+        val verdict1 = ContentIntelligenceEngine.classify(
+            packageName = "com.google.android.youtube",
+            contentDescription = "Video player: Taylor Swift - Anti-Hero (Official Music Video)",
+            className = "com.google.android.apps.youtube.app.watchwhile.WatchWhileActivity",
+            text = "Taylor Swift Official Music Video"
+        )
+        assertEquals(ContentVerdict.UNPRODUCTIVE, verdict1)
+
+        val verdict2 = ContentIntelligenceEngine.classify(
+            packageName = "com.google.android.youtube",
+            contentDescription = null,
+            className = null,
+            text = "Coldplay - Yellow (Lyrics Video) full song",
+            hierarchyText = "Coldplay Yellow official audio track"
+        )
+        assertEquals(ContentVerdict.UNPRODUCTIVE, verdict2)
+
+        val verdict3 = ContentIntelligenceEngine.classify(
+            packageName = "com.google.android.youtube",
+            contentDescription = null,
+            className = null,
+            text = "Lofi Hip Hop Radio - Beats to relax to"
+        )
+        assertEquals(ContentVerdict.UNPRODUCTIVE, verdict3)
+    }
+
+    @Test
+    fun testNodeHierarchyTextInspection() {
+        // When event.text and contentDescription are empty, hierarchyText provides the signal
+        val productiveVerdict = ContentIntelligenceEngine.classify(
+            packageName = "com.google.android.youtube",
+            contentDescription = null,
+            className = "android.widget.FrameLayout",
+            text = null,
+            hierarchyText = "YouTube Dynamic Programming LeetCode Hard Solutions In Depth"
+        )
+        assertEquals(ContentVerdict.PRODUCTIVE, productiveVerdict)
+
+        val unproductiveVerdict = ContentIntelligenceEngine.classify(
+            packageName = "com.google.android.youtube",
+            contentDescription = null,
+            className = "android.widget.FrameLayout",
+            text = null,
+            hierarchyText = "YouTube Top 10 Funniest Celebrity Roasts compilation"
+        )
+        assertEquals(ContentVerdict.UNPRODUCTIVE, unproductiveVerdict)
+    }
+
+    @Test
     fun testUnknownYouTubeVideoReturnsUnknown() {
         val verdict = ContentIntelligenceEngine.classify(
             packageName = "com.google.android.youtube",
