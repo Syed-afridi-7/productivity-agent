@@ -32,6 +32,8 @@ enum AgentEventType {
   tick,
   appBlocked,
   nudgeTriggered,
+  appOpened,
+  screenStateChanged,
   unknown;
 
   static AgentEventType fromString(String? value) {
@@ -44,6 +46,10 @@ enum AgentEventType {
         return AgentEventType.appBlocked;
       case 'NUDGE_TRIGGERED':
         return AgentEventType.nudgeTriggered;
+      case 'APP_OPENED':
+        return AgentEventType.appOpened;
+      case 'SCREEN_STATE_CHANGED':
+        return AgentEventType.screenStateChanged;
       default:
         return AgentEventType.unknown;
     }
@@ -65,9 +71,19 @@ class AgentEvent {
     this.payload = const {},
   });
 
+  String? get appPackage => payload['packageName'] as String?;
+  bool? get isScreenOn => payload['screenOn'] as bool?;
+
   factory AgentEvent.fromMap(Map<dynamic, dynamic> map) {
     final typeStr = map['type'] as String?;
-    final type = AgentEventType.fromString(typeStr);
+    final AgentEventType type;
+    if (typeStr == 'APP_OPENED') {
+      type = AgentEventType.appOpened;
+    } else if (typeStr == 'SCREEN_STATE_CHANGED') {
+      type = AgentEventType.screenStateChanged;
+    } else {
+      type = AgentEventType.fromString(typeStr);
+    }
 
     AgentState? from;
     AgentState? to;

@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="accessibility_service_description">Monitors foreground applications during focus sessions to intercept distractions and encourage productive habits.</string>
+</resources>

@@ -84,5 +84,28 @@ void main() {
       expect(blockEvent.type, equals(AgentEventType.appBlocked));
       expect(blockEvent.payload['app'], equals('com.instagram.android'));
     });
+
+    test('AgentEvent.fromMap parses APP_OPENED and SCREEN_STATE_CHANGED events', () {
+      final appOpenedEvent = AgentEvent.fromMap({
+        'type': 'APP_OPENED',
+        'packageName': 'com.instagram.android',
+      });
+      expect(appOpenedEvent.type, equals(AgentEventType.appOpened));
+      expect(appOpenedEvent.appPackage, equals('com.instagram.android'));
+
+      final screenOnEvent = AgentEvent.fromMap({
+        'type': 'SCREEN_STATE_CHANGED',
+        'screenOn': true,
+      });
+      expect(screenOnEvent.type, equals(AgentEventType.screenStateChanged));
+      expect(screenOnEvent.isScreenOn, isTrue);
+
+      final screenOffEvent = AgentEvent.fromMap({
+        'type': 'SCREEN_STATE_CHANGED',
+        'screenOn': false,
+      });
+      expect(screenOffEvent.type, equals(AgentEventType.screenStateChanged));
+      expect(screenOffEvent.isScreenOn, isFalse);
+    });
   });
 }

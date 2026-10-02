@@ -8,6 +8,9 @@ import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodChannel
+import androidx.core.content.ContextCompat
+import com.syedafridi.productivity_agent.bus.NativeAgentBus
+import com.syedafridi.productivity_agent.services.AgentForegroundService
 
 class MainActivity : FlutterActivity() {
     private val COMMAND_CHANNEL = "com.syedafridi.productivity_agent/commands"
@@ -22,6 +25,12 @@ class MainActivity : FlutterActivity() {
     private var todayFocusMinutes = 45
     private var distractionsBlocked = 3
     private var nudgesSent = 2
+
+    private val busListener: (Map<String, Any>) -> Unit = { event ->
+        mainHandler.post {
+            eventSink?.success(event)
+        }
+    }
 
     private val tickerRunnable = object : Runnable {
         override fun run() {
@@ -50,6 +59,8 @@ class MainActivity : FlutterActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
 
+        NativeAgentBus.addListener(busListener)
+
         // EventChannel for live streaming
         EventChannel(flutterEngine.dartExecutor.binaryMessenger, EVENT_CHANNEL).setStreamHandler(
             object : EventChannel.StreamHandler {
@@ -75,6 +86,11 @@ class MainActivity : FlutterActivity() {
                     mainHandler.removeCallbacks(tickerRunnable)
                     mainHandler.postDelayed(tickerRunnable, 1000)
 
+                    val serviceIntent = Intent(this, AgentForegroundService::class.java).apply {
+                        action = AgentForegroundService.ACTION_START
+                    }
+                    ContextCompat.startForegroundService(this, serviceIntent)
+
                     val event = mapOf(
                         "type" to "STATE_CHANGED",
                         "from" to "IDLE",
@@ -96,6 +112,11 @@ class MainActivity : FlutterActivity() {
                     isRunning = false
                     currentState = "IDLE"
                     mainHandler.removeCallbacks(tickerRunnable)
+
+                    val serviceIntent = Intent(this, AgentForegroundService::class.java).apply {
+                        action = AgentForegroundService.ACTION_STOP
+                    }
+                    startService(serviceIntent)
 
                     val event = mapOf(
                         "type" to "STATE_CHANGED",
@@ -149,11 +170,12 @@ class MainActivity : FlutterActivity() {
             contentResolver,
             Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
         ) ?: return false
-        val expectedServiceName = "$packageName/.MyAccessibilityService"
+        val expectedServiceName = "$packageName/.services.MyAccessibilityService"
         return enabledServices.contains(expectedServiceName) || enabledServices.contains(packageName)
     }
 
     override fun onDestroy() {
+        NativeAgentBus.removeListener(busListener)
         mainHandler.removeCallbacks(tickerRunnable)
         super.onDestroy()
     }

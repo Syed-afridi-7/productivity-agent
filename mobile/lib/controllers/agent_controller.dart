@@ -81,6 +81,8 @@ class AgentController extends ChangeNotifier {
         notifyListeners();
         break;
 
+      case AgentEventType.appOpened:
+      case AgentEventType.screenStateChanged:
       case AgentEventType.unknown:
         break;
     }
