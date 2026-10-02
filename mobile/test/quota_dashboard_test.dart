@@ -17,7 +17,14 @@ class FakeAgentBridge extends AgentBridge {
     gamingSecondsUsed: 600,   // 10 minutes
     gamingLimitSeconds: 1800, // 30 minutes
     reelsSecondsUsed: 300,    // 5 minutes
-    reelsLimitSeconds: 1200,  // 20 minutes
+    reelsLimitSeconds: 3600,  // 60 minutes
+    morningReelsUsed: 300,    // 5 minutes
+    afternoonReelsUsed: 0,
+    eveningReelsUsed: 0,
+    currentWindow: 'Morning',
+    currentWindowRemainingSeconds: 900, // 15 minutes
+    windowLimitSeconds: 1200, // 20 minutes
+    isCurrentWindowExhausted: false,
     is24x7Active: true,
   );
 
@@ -46,7 +53,14 @@ void main() {
       'gamingSecondsUsed': 900,
       'gamingLimitSeconds': 1800,
       'reelsSecondsUsed': 600,
-      'reelsLimitSeconds': 1200,
+      'reelsLimitSeconds': 3600,
+      'morningReelsUsed': 600,
+      'afternoonReelsUsed': 300,
+      'eveningReelsUsed': 0,
+      'currentWindow': 'Afternoon',
+      'currentWindowRemaining': 900,
+      'windowLimitSeconds': 1200,
+      'isCurrentWindowExhausted': false,
       'is24x7Active': true,
     };
 
@@ -58,13 +72,22 @@ void main() {
 
     expect(status.reelsSecondsUsed, 600);
     expect(status.reelsMinutesUsed, 10);
-    expect(status.reelsLimitMinutes, 20);
-    expect(status.reelsProgress, 0.5);
+    expect(status.reelsLimitMinutes, 60);
 
+    expect(status.morningMinutesUsed, 10);
+    expect(status.afternoonMinutesUsed, 5);
+    expect(status.eveningMinutesUsed, 0);
+    expect(status.windowLimitMinutes, 20);
+    expect(status.currentWindow, 'Afternoon');
+    expect(status.currentWindowRemainingMinutes, 15);
+    expect(status.morningProgress, 0.5);
+    expect(status.afternoonProgress, 0.25);
+    expect(status.eveningProgress, 0.0);
+    expect(status.isCurrentWindowExhausted, false);
     expect(status.is24x7Active, true);
   });
 
-  test('AgentController updates quota usage on QUOTA_TICK event', () async {
+  test('AgentController updates quota usage and windows on QUOTA_TICK event', () async {
     final eventController = StreamController<AgentEvent>.broadcast();
     final fakeBridge = FakeAgentBridge();
     final controller = AgentController(
@@ -75,24 +98,32 @@ void main() {
     await controller.init();
     expect(controller.status.gamingSecondsUsed, 600);
     expect(controller.status.reelsSecondsUsed, 300);
+    expect(controller.status.morningReelsUsed, 300);
 
-    // Emit a QUOTA_TICK event
+    // Emit a QUOTA_TICK event with updated window values
     eventController.add(
       AgentEvent.fromMap({
         'type': 'QUOTA_TICK',
-        'category': 'GAMING',
-        'gamingUsed': 605,
-        'reelsUsed': 300,
+        'category': 'REELS',
+        'gamingUsed': 600,
+        'reelsUsed': 360,
+        'morningReelsUsed': 360,
+        'afternoonReelsUsed': 0,
+        'eveningReelsUsed': 0,
+        'currentWindow': 'Morning',
+        'currentWindowRemaining': 840,
       }),
     );
 
     await Future<void>.delayed(const Duration(milliseconds: 50));
-    expect(controller.status.gamingSecondsUsed, 605);
+    expect(controller.status.reelsSecondsUsed, 360);
+    expect(controller.status.morningReelsUsed, 360);
+    expect(controller.status.currentWindowRemainingSeconds, 840);
 
     eventController.close();
   });
 
-  testWidgets('DashboardScreen renders 24/7 Guardian badge and quota progress', (tester) async {
+  testWidgets('DashboardScreen renders 24/7 Guardian badge, window cards, and quota progress', (tester) async {
     final fakeBridge = FakeAgentBridge();
     final controller = AgentController(bridge: fakeBridge);
     await controller.init();
@@ -107,6 +138,12 @@ void main() {
     // Verify 24/7 Guardian Active badge
     expect(find.textContaining('24/7 GUARDIAN: ACTIVE'), findsOneWidget);
 
+    // Verify 3 Window Cards
+    expect(find.text('Morning'), findsOneWidget);
+    expect(find.text('Afternoon'), findsOneWidget);
+    expect(find.text('Evening'), findsOneWidget);
+    expect(find.text('ACTIVE'), findsOneWidget); // Morning is active
+
     // Verify Gaming Quota section
     expect(find.textContaining('Gaming Budget'), findsOneWidget);
     expect(find.textContaining('10 / 30m'), findsOneWidget);
@@ -117,5 +154,8 @@ void main() {
 
     // Verify Whitelisted indicators
     expect(find.textContaining('DMs & Study: UNLIMITED'), findsOneWidget);
+
+    // Verify Autonomous Lockdown card
+    expect(find.textContaining('AUTONOMOUS LOCKDOWN ACTIVE'), findsOneWidget);
   });
 }

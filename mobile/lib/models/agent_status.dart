@@ -124,10 +124,17 @@ class AgentStatus {
   final int gamingLimitSeconds;
   final int reelsSecondsUsed;
   final int reelsLimitSeconds;
+  final int morningReelsUsed;
+  final int afternoonReelsUsed;
+  final int eveningReelsUsed;
+  final String currentWindow;
+  final int currentWindowRemainingSeconds;
+  final int windowLimitSeconds;
+  final bool isCurrentWindowExhausted;
   final bool is24x7Active;
 
   const AgentStatus({
-    this.isRunning = false,
+    this.isRunning = true,
     this.state = AgentState.idle,
     this.remainingSeconds = 0,
     this.todayFocusMinutes = 0,
@@ -136,7 +143,14 @@ class AgentStatus {
     this.gamingSecondsUsed = 0,
     this.gamingLimitSeconds = 1800, // 30 minutes
     this.reelsSecondsUsed = 0,
-    this.reelsLimitSeconds = 1200,  // 20 minutes
+    this.reelsLimitSeconds = 3600,  // 60 minutes daily
+    this.morningReelsUsed = 0,
+    this.afternoonReelsUsed = 0,
+    this.eveningReelsUsed = 0,
+    this.currentWindow = 'Morning',
+    this.currentWindowRemainingSeconds = 1200,
+    this.windowLimitSeconds = 1200, // 20 minutes
+    this.isCurrentWindowExhausted = false,
     this.is24x7Active = true,
   });
 
@@ -150,6 +164,22 @@ class AgentStatus {
   int get reelsLimitMinutes => (reelsLimitSeconds / 60).floor();
   double get reelsProgress => reelsLimitSeconds > 0
       ? (reelsSecondsUsed / reelsLimitSeconds).clamp(0.0, 1.0)
+      : 0.0;
+
+  int get morningMinutesUsed => (morningReelsUsed / 60).floor();
+  int get afternoonMinutesUsed => (afternoonReelsUsed / 60).floor();
+  int get eveningMinutesUsed => (eveningReelsUsed / 60).floor();
+  int get windowLimitMinutes => (windowLimitSeconds / 60).floor();
+  int get currentWindowRemainingMinutes => (currentWindowRemainingSeconds / 60).ceil();
+
+  double get morningProgress => windowLimitSeconds > 0
+      ? (morningReelsUsed / windowLimitSeconds).clamp(0.0, 1.0)
+      : 0.0;
+  double get afternoonProgress => windowLimitSeconds > 0
+      ? (afternoonReelsUsed / windowLimitSeconds).clamp(0.0, 1.0)
+      : 0.0;
+  double get eveningProgress => windowLimitSeconds > 0
+      ? (eveningReelsUsed / windowLimitSeconds).clamp(0.0, 1.0)
       : 0.0;
 
   String get formattedTime {
@@ -180,6 +210,13 @@ class AgentStatus {
     int? gamingLimitSeconds,
     int? reelsSecondsUsed,
     int? reelsLimitSeconds,
+    int? morningReelsUsed,
+    int? afternoonReelsUsed,
+    int? eveningReelsUsed,
+    String? currentWindow,
+    int? currentWindowRemainingSeconds,
+    int? windowLimitSeconds,
+    bool? isCurrentWindowExhausted,
     bool? is24x7Active,
   }) {
     return AgentStatus(
@@ -193,13 +230,20 @@ class AgentStatus {
       gamingLimitSeconds: gamingLimitSeconds ?? this.gamingLimitSeconds,
       reelsSecondsUsed: reelsSecondsUsed ?? this.reelsSecondsUsed,
       reelsLimitSeconds: reelsLimitSeconds ?? this.reelsLimitSeconds,
+      morningReelsUsed: morningReelsUsed ?? this.morningReelsUsed,
+      afternoonReelsUsed: afternoonReelsUsed ?? this.afternoonReelsUsed,
+      eveningReelsUsed: eveningReelsUsed ?? this.eveningReelsUsed,
+      currentWindow: currentWindow ?? this.currentWindow,
+      currentWindowRemainingSeconds: currentWindowRemainingSeconds ?? this.currentWindowRemainingSeconds,
+      windowLimitSeconds: windowLimitSeconds ?? this.windowLimitSeconds,
+      isCurrentWindowExhausted: isCurrentWindowExhausted ?? this.isCurrentWindowExhausted,
       is24x7Active: is24x7Active ?? this.is24x7Active,
     );
   }
 
   factory AgentStatus.fromMap(Map<dynamic, dynamic> map) {
     return AgentStatus(
-      isRunning: map['isRunning'] == true,
+      isRunning: map.containsKey('isRunning') ? map['isRunning'] == true : true,
       state: AgentState.fromString(map['state'] as String?),
       remainingSeconds: (map['remainingSeconds'] as num?)?.toInt() ?? 0,
       todayFocusMinutes: (map['todayFocusMinutes'] as num?)?.toInt() ?? 0,
@@ -208,7 +252,14 @@ class AgentStatus {
       gamingSecondsUsed: (map['gamingSecondsUsed'] as num?)?.toInt() ?? 0,
       gamingLimitSeconds: (map['gamingLimitSeconds'] as num?)?.toInt() ?? 1800,
       reelsSecondsUsed: (map['reelsSecondsUsed'] as num?)?.toInt() ?? 0,
-      reelsLimitSeconds: (map['reelsLimitSeconds'] as num?)?.toInt() ?? 1200,
+      reelsLimitSeconds: (map['reelsLimitSeconds'] as num?)?.toInt() ?? 3600,
+      morningReelsUsed: (map['morningReelsUsed'] as num?)?.toInt() ?? 0,
+      afternoonReelsUsed: (map['afternoonReelsUsed'] as num?)?.toInt() ?? 0,
+      eveningReelsUsed: (map['eveningReelsUsed'] as num?)?.toInt() ?? 0,
+      currentWindow: map['currentWindow'] as String? ?? 'Morning',
+      currentWindowRemainingSeconds: (map['currentWindowRemaining'] as num?)?.toInt() ?? 1200,
+      windowLimitSeconds: (map['windowLimitSeconds'] as num?)?.toInt() ?? 1200,
+      isCurrentWindowExhausted: map['isCurrentWindowExhausted'] == true,
       is24x7Active: map.containsKey('is24x7Active') ? map['is24x7Active'] == true : true,
     );
   }

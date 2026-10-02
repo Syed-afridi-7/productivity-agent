@@ -20,37 +20,37 @@ class ProductivityWarningOverlay(
     init {
         orientation = VERTICAL
         gravity = Gravity.CENTER
-        setBackgroundColor(Color.parseColor("#CC000000"))
+        setBackgroundColor(Color.parseColor("#E6000000")) // Deep dark overlay
         setPadding(48, 48, 48, 48)
 
         val warningIcon = TextView(context).apply {
             text = "\u26A0\uFE0F"
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 48f)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 44f)
             gravity = Gravity.CENTER
         }
         addView(warningIcon)
 
         val titleText = TextView(context).apply {
-            text = "Are you being productive?"
+            text = "Unproductive Content Detected"
             setTextColor(Color.WHITE)
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 22f)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 20f)
             gravity = Gravity.CENTER
-            setPadding(0, 24, 0, 16)
+            setPadding(0, 20, 0, 12)
         }
         addView(titleText)
 
         val subtitleText = TextView(context).apply {
             text = "Navigate to productive content or this app will close."
             setTextColor(Color.parseColor("#AAAAAA"))
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
             gravity = Gravity.CENTER
-            setPadding(0, 0, 0, 24)
+            setPadding(0, 0, 0, 20)
         }
         addView(subtitleText)
 
         countdownText = TextView(context).apply {
-            text = "Closing in 30s..."
-            setTextColor(Color.parseColor("#FF6B6B"))
+            text = "Closing in 12s..."
+            setTextColor(Color.parseColor("#FF4D4D"))
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 18f)
             gravity = Gravity.CENTER
         }
@@ -60,12 +60,14 @@ class ProductivityWarningOverlay(
     }
 
     private fun startCountdown() {
-        timer = object : CountDownTimer(30_000, 1000) {
+        // 12-second countdown with 1-second intervals
+        timer = object : CountDownTimer(12_000, 1000) {
             override fun onTick(millisUntilFinished: Long) {
-                val seconds = millisUntilFinished / 1000
+                val seconds = (millisUntilFinished / 1000) + 1
                 countdownText.text = "Closing in ${seconds}s..."
             }
             override fun onFinish() {
+                countdownText.text = "Closing in 0s..."
                 onTimeExpired()
             }
         }.start()

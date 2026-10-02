@@ -4,7 +4,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:productivity_agent/controllers/agent_controller.dart';
 import 'package:productivity_agent/main.dart';
 import 'package:productivity_agent/screens/settings_screen.dart';
-import 'package:productivity_agent/widgets/duration_picker.dart';
 import 'package:productivity_agent/widgets/metrics_card.dart';
 
 void main() {
@@ -18,12 +17,24 @@ void main() {
         switch (methodCall.method) {
           case 'getAgentStatus':
             return {
-              'isRunning': false,
-              'state': 'IDLE',
+              'isRunning': true,
+              'state': 'DEEP_FOCUS',
               'remainingSeconds': 0,
               'todayFocusMinutes': 45,
               'distractionsBlocked': 3,
               'nudgesSent': 2,
+              'gamingSecondsUsed': 600,
+              'gamingLimitSeconds': 1800,
+              'reelsSecondsUsed': 300,
+              'reelsLimitSeconds': 3600,
+              'morningReelsUsed': 300,
+              'afternoonReelsUsed': 0,
+              'eveningReelsUsed': 0,
+              'currentWindow': 'Morning',
+              'currentWindowRemaining': 900,
+              'windowLimitSeconds': 1200,
+              'isCurrentWindowExhausted': false,
+              'is24x7Active': true,
             };
           case 'isAccessibilityEnabled':
             return true;
@@ -50,7 +61,7 @@ void main() {
     );
   });
 
-  testWidgets('Dashboard displays header, status ring, duration picker, and metrics', (tester) async {
+  testWidgets('Dashboard displays header, 24/7 Guardian badge, window quota cards, and metrics', (tester) async {
     final controller = AgentController();
     await controller.init();
     await tester.pumpWidget(ProductivityApp(controller: controller));
@@ -59,13 +70,16 @@ void main() {
     // Verify Header
     expect(find.text('⚡ PRODUCTIVITY AGENT'), findsOneWidget);
 
-    // Verify Duration Pills
-    expect(find.text('25m'), findsOneWidget);
-    expect(find.descendant(of: find.byType(DurationPicker), matching: find.text('45m')), findsOneWidget);
-    expect(find.text('60m'), findsOneWidget);
+    // Verify 24/7 Guardian Active badge
+    expect(find.text('24/7 GUARDIAN: ACTIVE'), findsOneWidget);
 
-    // Verify Action Button in IDLE state
-    expect(find.text('START GUARDIAN'), findsOneWidget);
+    // Verify 3 Window Quota Cards
+    expect(find.text('Morning'), findsOneWidget);
+    expect(find.text('Afternoon'), findsOneWidget);
+    expect(find.text('Evening'), findsOneWidget);
+
+    // Verify Autonomous Lockdown Active card
+    expect(find.text('AUTONOMOUS LOCKDOWN ACTIVE'), findsOneWidget);
 
     // Verify Metric Cards
     expect(find.text('Focus Today'), findsOneWidget);
@@ -77,14 +91,6 @@ void main() {
 
     // Verify Settings Button
     expect(find.byKey(const Key('dashboard_settings_button')), findsOneWidget);
-
-    // Tap START GUARDIAN
-    await tester.ensureVisible(find.text('START GUARDIAN'));
-    await tester.tap(find.text('START GUARDIAN'));
-    await tester.pumpAndSettle();
-
-    // Verify state transitioned to HALT SESSION
-    expect(find.text('HALT SESSION'), findsOneWidget);
   });
 
   testWidgets('Settings icon button exists on DashboardScreen and tapping navigates to SettingsScreen', (tester) async {

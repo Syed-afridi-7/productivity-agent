@@ -145,9 +145,9 @@ class MainActivity : FlutterActivity() {
                     val snapshot = AutonomousQuotaManager.getSnapshot()
                     result.success(
                         mapOf(
-                            "isRunning" to isRunning,
-                            "state" to currentState,
-                            "remainingSeconds" to remainingSeconds,
+                            "isRunning" to true,
+                            "state" to "GUARDIAN_ACTIVE",
+                            "remainingSeconds" to snapshot.currentWindowRemaining.toInt(),
                             "todayFocusMinutes" to todayFocusMinutes,
                             "distractionsBlocked" to distractionsBlocked,
                             "nudgesSent" to nudgesSent,
@@ -155,6 +155,13 @@ class MainActivity : FlutterActivity() {
                             "gamingLimitSeconds" to snapshot.gamingLimitSeconds,
                             "reelsSecondsUsed" to snapshot.reelsSecondsUsed,
                             "reelsLimitSeconds" to snapshot.reelsLimitSeconds,
+                            "morningReelsUsed" to snapshot.morningReelsUsed,
+                            "afternoonReelsUsed" to snapshot.afternoonReelsUsed,
+                            "eveningReelsUsed" to snapshot.eveningReelsUsed,
+                            "currentWindow" to snapshot.currentWindow.label,
+                            "currentWindowRemaining" to snapshot.currentWindowRemaining,
+                            "windowLimitSeconds" to snapshot.currentWindowLimit,
+                            "isCurrentWindowExhausted" to snapshot.isCurrentWindowExhausted,
                             "is24x7Active" to true
                         )
                     )

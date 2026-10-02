@@ -91,8 +91,32 @@ class MyAccessibilityService : AccessibilityService() {
                         kickToHome(currentTrackedPackage ?: "unknown", "CONTENT_GRACE_EXPIRED")
                     }
                 }
-                // REELS tracking removed — Reels/Shorts are now instant zero-tolerance blocked
-                ActiveTrackingMode.REELS,
+                ActiveTrackingMode.REELS -> {
+                    AutonomousQuotaManager.recordReelsTick(1)
+                    val snapshot = AutonomousQuotaManager.getSnapshot()
+                    NativeAgentBus.emit(
+                        mapOf(
+                            "type" to "QUOTA_TICK",
+                            "category" to "REELS",
+                            "gamingUsed" to snapshot.gamingSecondsUsed,
+                            "reelsUsed" to snapshot.reelsSecondsUsed,
+                            "morningUsed" to snapshot.morningReelsUsed,
+                            "afternoonUsed" to snapshot.afternoonReelsUsed,
+                            "eveningUsed" to snapshot.eveningReelsUsed,
+                            "currentWindow" to snapshot.currentWindow.label,
+                            "currentWindowRemaining" to snapshot.currentWindowRemaining,
+                            "timestamp" to System.currentTimeMillis()
+                        )
+                    )
+                    if (AutonomousQuotaManager.isCurrentWindowExhausted()) {
+                        try {
+                            Log.w(TAG, "Reels current window quota (20m) exhausted! Returning home.")
+                        } catch (_: Throwable) {
+                            println("[$TAG] Reels current window quota (20m) exhausted! Returning home.")
+                        }
+                        kickToHome(currentTrackedPackage ?: "unknown_reels", "REELS_WINDOW_EXHAUSTED")
+                    }
+                }
                 ActiveTrackingMode.NONE -> {}
             }
             trackingHandler.postDelayed(this, 1000)
@@ -159,11 +183,14 @@ class MyAccessibilityService : AccessibilityService() {
                         }
                         ContentVerdict.UNPRODUCTIVE -> {
                             try {
-                                Log.w(TAG, "Content re-classified UNPRODUCTIVE (content change). Blocking.")
+                                Log.w(TAG, "Content re-classified UNPRODUCTIVE (content change). Showing 12s auto-kick.")
                             } catch (_: Throwable) {}
-                            dismissProductivityWarning()
-                            ContentGraceMonitor.deactivate()
-                            kickToHome(pkgName, "CONTENT_UNPRODUCTIVE")
+                            currentTrackedPackage = pkgName
+                            if (currentWarningOverlay == null && Settings.canDrawOverlays(this@MyAccessibilityService)) {
+                                showProductivityWarningOverlay()
+                            } else if (!Settings.canDrawOverlays(this@MyAccessibilityService)) {
+                                kickToHome(pkgName, "CONTENT_UNPRODUCTIVE")
+                            }
                         }
                         ContentVerdict.UNKNOWN -> { /* Keep waiting in grace period */ }
                     }
@@ -207,12 +234,17 @@ class MyAccessibilityService : AccessibilityService() {
                 return
             }
 
-            // 3. Reels / Shorts — INSTANT zero-tolerance block (no quota, immediate kickout)
+            // 3. Reels / Shorts (Instagram / YouTube / Facebook) — Windowed 20m Quota
             if (SubScreenClassifier.isReelsOrShorts(pkgName, className, contentDesc, text)) {
-                try {
-                    Log.w(TAG, "Reels/Shorts detected in $pkgName. Instant block.")
-                } catch (_: Throwable) {}
-                kickToHome(pkgName, "REELS_INSTANT_BLOCK")
+                if (AutonomousQuotaManager.isCurrentWindowExhausted()) {
+                    try {
+                        Log.w(TAG, "Reels current window quota exhausted! Blocking $pkgName.")
+                    } catch (_: Throwable) {}
+                    kickToHome(pkgName, "REELS_WINDOW_EXHAUSTED")
+                } else {
+                    currentTrackedPackage = pkgName
+                    activeTrackingMode = ActiveTrackingMode.REELS
+                }
                 return
             }
 
@@ -231,11 +263,14 @@ class MyAccessibilityService : AccessibilityService() {
                     }
                     ContentVerdict.UNPRODUCTIVE -> {
                         try {
-                            Log.w(TAG, "Content classified UNPRODUCTIVE in $pkgName. Instant block.")
+                            Log.w(TAG, "Content classified UNPRODUCTIVE in $pkgName. Showing 12s auto-kick.")
                         } catch (_: Throwable) {}
-                        dismissProductivityWarning()
-                        ContentGraceMonitor.deactivate()
-                        kickToHome(pkgName, "CONTENT_UNPRODUCTIVE")
+                        currentTrackedPackage = pkgName
+                        if (currentWarningOverlay == null && Settings.canDrawOverlays(this@MyAccessibilityService)) {
+                            showProductivityWarningOverlay()
+                        } else if (!Settings.canDrawOverlays(this@MyAccessibilityService)) {
+                            kickToHome(pkgName, "CONTENT_UNPRODUCTIVE")
+                        }
                         return
                     }
                     ContentVerdict.UNKNOWN -> {

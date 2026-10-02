@@ -10,20 +10,12 @@ class StatusRing extends StatelessWidget {
     required this.status,
   }) : super(key: key);
 
-  Color get _accentColor {
-    switch (status.state) {
-      case AgentState.deepFocus:
-        return CyberTheme.neonEmerald;
-      case AgentState.shortBreak:
-        return CyberTheme.amberGlow;
-      case AgentState.idle:
-        return CyberTheme.borderActive;
-    }
-  }
+  Color get _accentColor => CyberTheme.neonEmerald;
 
   @override
   Widget build(BuildContext context) {
-    final displayText = status.isRunning ? status.formattedTime : 'READY';
+    final windowName = status.currentWindow.toUpperCase();
+    final remainingMins = status.currentWindowRemainingMinutes;
 
     return Center(
       child: Container(
@@ -37,27 +29,41 @@ class StatusRing extends StatelessWidget {
             width: 3.0,
           ),
           boxShadow: [
-            if (status.isRunning)
-              BoxShadow(
-                color: _accentColor.withOpacity(0.35),
-                blurRadius: 28,
-                spreadRadius: 2,
-              ),
+            BoxShadow(
+              color: _accentColor.withOpacity(0.35),
+              blurRadius: 28,
+              spreadRadius: 2,
+            ),
           ],
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text(
-              displayText,
-              style: TextStyle(
-                color: CyberTheme.textPrimary,
-                fontSize: status.isRunning ? 40 : 34,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 2.0,
-              ),
+            const Icon(
+              Icons.shield_rounded,
+              color: CyberTheme.neonEmerald,
+              size: 46,
             ),
             const SizedBox(height: 8),
+            const Text(
+              'GUARDIAN',
+              style: TextStyle(
+                color: CyberTheme.textPrimary,
+                fontSize: 22,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 2.5,
+              ),
+            ),
+            const Text(
+              'ACTIVE 24/7',
+              style: TextStyle(
+                color: CyberTheme.neonEmerald,
+                fontSize: 13,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 1.8,
+              ),
+            ),
+            const SizedBox(height: 10),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
@@ -65,12 +71,12 @@ class StatusRing extends StatelessWidget {
                 borderRadius: BorderRadius.circular(4),
               ),
               child: Text(
-                status.stateDisplayName,
+                '$windowName • ${remainingMins}M LEFT',
                 style: TextStyle(
                   color: _accentColor,
-                  fontSize: 12,
+                  fontSize: 11,
                   fontWeight: FontWeight.bold,
-                  letterSpacing: 1.5,
+                  letterSpacing: 1.2,
                 ),
               ),
             ),

@@ -83,7 +83,7 @@ void main() {
   });
 
   test('AgentController initial state and duration selection', () {
-    expect(controller.status.isRunning, isFalse);
+    expect(controller.status.isRunning, isTrue);
     expect(controller.selectedDurationMinutes, equals(25));
 
     controller.selectDuration(45);

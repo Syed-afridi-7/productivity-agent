@@ -103,9 +103,23 @@ class AgentController extends ChangeNotifier {
       case AgentEventType.quotaTick:
         final gaming = event.gamingUsed;
         final reels = event.reelsUsed;
+        final morning = (event.payload['morningUsed'] as num?)?.toInt() ??
+            (event.payload['morningReelsUsed'] as num?)?.toInt();
+        final afternoon = (event.payload['afternoonUsed'] as num?)?.toInt() ??
+            (event.payload['afternoonReelsUsed'] as num?)?.toInt();
+        final evening = (event.payload['eveningUsed'] as num?)?.toInt() ??
+            (event.payload['eveningReelsUsed'] as num?)?.toInt();
+        final window = event.payload['currentWindow'] as String?;
+        final remaining = (event.payload['currentWindowRemaining'] as num?)?.toInt();
+
         _status = _status.copyWith(
           gamingSecondsUsed: gaming ?? _status.gamingSecondsUsed,
           reelsSecondsUsed: reels ?? _status.reelsSecondsUsed,
+          morningReelsUsed: morning ?? _status.morningReelsUsed,
+          afternoonReelsUsed: afternoon ?? _status.afternoonReelsUsed,
+          eveningReelsUsed: evening ?? _status.eveningReelsUsed,
+          currentWindow: window ?? _status.currentWindow,
+          currentWindowRemainingSeconds: remaining ?? _status.currentWindowRemainingSeconds,
         );
         notifyListeners();
         break;
@@ -118,7 +132,6 @@ class AgentController extends ChangeNotifier {
   }
 
   void selectDuration(int minutes) {
-    if (_status.isRunning) return;
     _selectedDurationMinutes = minutes;
     notifyListeners();
   }
