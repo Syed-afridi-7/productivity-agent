@@ -12,6 +12,7 @@ class AgentController extends ChangeNotifier {
   bool _isAccessibilityGranted = true;
   bool _isOverlayGranted = false;
   bool _isLoading = false;
+  List<String> _blacklist = const [];
 
   StreamSubscription<AgentEvent>? _streamSubscription;
 
@@ -26,6 +27,7 @@ class AgentController extends ChangeNotifier {
   bool get isAccessibilityGranted => _isAccessibilityGranted;
   bool get isOverlayGranted => _isOverlayGranted;
   bool get isLoading => _isLoading;
+  List<String> get blacklist => List.unmodifiable(_blacklist);
 
   Future<void> init() async {
     _isLoading = true;
@@ -35,6 +37,20 @@ class AgentController extends ChangeNotifier {
       _isAccessibilityGranted = await _bridge.isAccessibilityEnabled();
       _isOverlayGranted = await _bridge.isOverlayPermissionEnabled();
       _status = await _bridge.getAgentStatus();
+
+      final initialBlacklist = await _bridge.getBlacklist();
+      if (initialBlacklist.isNotEmpty) {
+        _blacklist = List.from(initialBlacklist);
+      } else {
+        _blacklist = [
+          'com.instagram.android',
+          'com.zhiliaoapp.musically',
+          'com.twitter.android',
+          'com.google.android.youtube',
+          'com.facebook.katana',
+          'com.reddit.frontpage',
+        ];
+      }
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -145,6 +161,36 @@ class AgentController extends ChangeNotifier {
 
   Future<void> requestOverlayPermission() async {
     await _bridge.openOverlaySettings();
+  }
+
+  bool isPackageBlacklisted(String packageName) => _blacklist.contains(packageName);
+
+  Future<void> toggleAppBlacklist(String packageName, bool enable) async {
+    final updated = List<String>.from(_blacklist);
+    if (enable) {
+      if (!updated.contains(packageName)) updated.add(packageName);
+    } else {
+      updated.remove(packageName);
+    }
+    _blacklist = updated;
+    notifyListeners();
+    await _bridge.updateBlacklist(_blacklist);
+  }
+
+  Future<void> addCustomPackage(String packageName) async {
+    final trimmed = packageName.trim();
+    if (trimmed.isEmpty || _blacklist.contains(trimmed)) return;
+    final updated = List<String>.from(_blacklist)..add(trimmed);
+    _blacklist = updated;
+    notifyListeners();
+    await _bridge.updateBlacklist(_blacklist);
+  }
+
+  Future<void> removeCustomPackage(String packageName) async {
+    final updated = List<String>.from(_blacklist)..remove(packageName);
+    _blacklist = updated;
+    notifyListeners();
+    await _bridge.updateBlacklist(_blacklist);
   }
 
   Future<bool> updateBlacklist(List<String> packages) async {

@@ -1,7 +1,9 @@
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:productivity_agent/controllers/agent_controller.dart';
 import 'package:productivity_agent/main.dart';
+import 'package:productivity_agent/screens/settings_screen.dart';
 import 'package:productivity_agent/widgets/duration_picker.dart';
 import 'package:productivity_agent/widgets/metrics_card.dart';
 
@@ -25,6 +27,10 @@ void main() {
             };
           case 'isAccessibilityEnabled':
             return true;
+          case 'isOverlayPermissionEnabled':
+            return true;
+          case 'getBlacklist':
+            return ['com.instagram.android', 'com.zhiliaoapp.musically'];
           case 'startAgent':
             return {'success': true, 'state': 'DEEP_FOCUS', 'durationSec': 1500};
           case 'stopAgent':
@@ -69,11 +75,32 @@ void main() {
     expect(find.text('Nudges'), findsOneWidget);
     expect(find.text('2'), findsOneWidget);
 
+    // Verify Settings Button
+    expect(find.byKey(const Key('dashboard_settings_button')), findsOneWidget);
+
     // Tap START GUARDIAN
     await tester.tap(find.text('START GUARDIAN'));
     await tester.pumpAndSettle();
 
     // Verify state transitioned to HALT SESSION
     expect(find.text('HALT SESSION'), findsOneWidget);
+  });
+
+  testWidgets('Settings icon button exists on DashboardScreen and tapping navigates to SettingsScreen', (tester) async {
+    final controller = AgentController();
+    await controller.init();
+    await tester.pumpWidget(ProductivityApp(controller: controller));
+    await tester.pumpAndSettle();
+
+    // Verify settings button exists with key 'dashboard_settings_button'
+    final settingsButton = find.byKey(const Key('dashboard_settings_button'));
+    expect(settingsButton, findsOneWidget);
+
+    // Tap settings button and verify navigation to SettingsScreen
+    await tester.tap(settingsButton);
+    await tester.pumpAndSettle();
+
+    expect(find.byType(SettingsScreen), findsOneWidget);
+    expect(find.text('GUARDIAN SETTINGS'), findsOneWidget);
   });
 }

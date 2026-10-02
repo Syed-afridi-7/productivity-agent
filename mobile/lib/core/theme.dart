@@ -17,6 +17,22 @@ class CyberTheme {
   static const Color textPrimary = Color(0xFFFFFFFF);
   static const Color textMuted = Color(0xFF8E95A5);
 
+  // Semantic Aliases & Text Styles
+  static const Color backgroundDark = bgOled;
+  static const Color cardDark = cardBg;
+  static const Color accentEmerald = neonEmerald;
+  static const Color accentAmber = amberGlow;
+  static const Color accentCrimson = crimsonNeon;
+  static const Color textDim = textMuted;
+
+  static const TextStyle statusLabel = TextStyle(
+    fontFamily: 'monospace',
+    fontSize: 12,
+    fontWeight: FontWeight.bold,
+    letterSpacing: 1.2,
+    color: textMuted,
+  );
+
   static ThemeData get darkTheme {
     return ThemeData(
       brightness: Brightness.dark,

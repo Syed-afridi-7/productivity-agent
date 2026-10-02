@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:productivity_agent/screens/settings_screen.dart';
 import '../controllers/agent_controller.dart';
 import '../core/theme.dart';
 import '../widgets/duration_picker.dart';
@@ -13,6 +14,46 @@ class DashboardScreen extends StatelessWidget {
     required this.controller,
   }) : super(key: key);
 
+  DashboardScreen get widget => this;
+
+  PreferredSizeWidget _buildHeader(BuildContext context) {
+    final isRunning = controller.status.isRunning;
+    return AppBar(
+      title: const Text('⚡ PRODUCTIVITY AGENT'),
+      actions: [
+        Center(
+          child: Container(
+            width: 10,
+            height: 10,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: isRunning ? CyberTheme.neonEmerald : CyberTheme.borderActive,
+              boxShadow: [
+                if (isRunning)
+                  const BoxShadow(
+                    color: CyberTheme.neonEmerald,
+                    blurRadius: 6,
+                  ),
+              ],
+            ),
+          ),
+        ),
+        IconButton(
+          key: const Key('dashboard_settings_button'),
+          icon: const Icon(Icons.tune_rounded, color: CyberTheme.textDim, size: 22),
+          onPressed: () {
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => SettingsScreen(controller: widget.controller),
+              ),
+            );
+          },
+        ),
+        const SizedBox(width: 8),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
@@ -22,31 +63,7 @@ class DashboardScreen extends StatelessWidget {
         final isRunning = status.isRunning;
 
         return Scaffold(
-          appBar: AppBar(
-            title: const Text('⚡ PRODUCTIVITY AGENT'),
-            actions: [
-              Padding(
-                padding: const EdgeInsets.only(right: 16),
-                child: Center(
-                  child: Container(
-                    width: 10,
-                    height: 10,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: isRunning ? CyberTheme.neonEmerald : CyberTheme.borderActive,
-                      boxShadow: [
-                        if (isRunning)
-                          const BoxShadow(
-                            color: CyberTheme.neonEmerald,
-                            blurRadius: 6,
-                          ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
+          appBar: _buildHeader(context),
           body: SafeArea(
             child: SingleChildScrollView(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),

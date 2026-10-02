@@ -14,11 +14,15 @@ void main() {
   bool isAgentRunning = false;
   bool isOverlayGrantedMock = false;
   bool openOverlaySettingsCalled = false;
+  List<String> mockBlacklist = ['com.instagram.android'];
+  List<String>? lastUpdatedBlacklist;
 
   setUp(() {
     streamController = StreamController<dynamic>.broadcast();
     isOverlayGrantedMock = false;
     openOverlaySettingsCalled = false;
+    mockBlacklist = ['com.instagram.android'];
+    lastUpdatedBlacklist = null;
 
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(
@@ -48,9 +52,13 @@ void main() {
             openOverlaySettingsCalled = true;
             return null;
           case 'updateBlacklist':
+            final dynamic args = methodCall.arguments;
+            if (args is Map && args['packages'] != null) {
+              lastUpdatedBlacklist = List<String>.from(args['packages'] as List);
+            }
             return true;
           case 'getBlacklist':
-            return ['com.instagram.android'];
+            return mockBlacklist;
           default:
             return null;
         }
@@ -140,5 +148,105 @@ void main() {
 
     final blacklist = await controller.getBlacklist();
     expect(blacklist, contains('com.instagram.android'));
+  });
+
+  test('AgentController init syncs blacklist from bridge', () async {
+    await controller.init();
+    expect(controller.blacklist, equals(['com.instagram.android']));
+    expect(controller.isPackageBlacklisted('com.instagram.android'), isTrue);
+    expect(controller.isPackageBlacklisted('com.twitter.android'), isFalse);
+  });
+
+  test('AgentController init falls back to default blacklist if getBlacklist is empty', () async {
+    mockBlacklist = [];
+    await controller.init();
+    expect(
+      controller.blacklist,
+      equals([
+        'com.instagram.android',
+        'com.zhiliaoapp.musically',
+        'com.twitter.android',
+        'com.google.android.youtube',
+        'com.facebook.katana',
+        'com.reddit.frontpage',
+      ]),
+    );
+  });
+
+  test('AgentController blacklist getter returns unmodifiable list', () async {
+    await controller.init();
+    expect(() => controller.blacklist.add('com.forbidden.app'), throwsUnsupportedError);
+  });
+
+  test('AgentController toggleAppBlacklist enables and disables packages and updates bridge', () async {
+    await controller.init();
+    expect(controller.isPackageBlacklisted('com.twitter.android'), isFalse);
+
+    int listenerNotificationCount = 0;
+    controller.addListener(() {
+      listenerNotificationCount++;
+    });
+
+    // Enable package
+    await controller.toggleAppBlacklist('com.twitter.android', true);
+    expect(controller.isPackageBlacklisted('com.twitter.android'), isTrue);
+    expect(controller.blacklist, contains('com.twitter.android'));
+    expect(lastUpdatedBlacklist, contains('com.twitter.android'));
+    expect(listenerNotificationCount, equals(1));
+
+    // Enabling already present package does not duplicate
+    await controller.toggleAppBlacklist('com.twitter.android', true);
+    expect(controller.blacklist.where((p) => p == 'com.twitter.android').length, equals(1));
+
+    // Disable package
+    await controller.toggleAppBlacklist('com.twitter.android', false);
+    expect(controller.isPackageBlacklisted('com.twitter.android'), isFalse);
+    expect(controller.blacklist, isNot(contains('com.twitter.android')));
+    expect(lastUpdatedBlacklist, isNot(contains('com.twitter.android')));
+    expect(listenerNotificationCount, equals(3));
+  });
+
+  test('AgentController addCustomPackage adds package and updates bridge', () async {
+    await controller.init();
+
+    int listenerNotificationCount = 0;
+    controller.addListener(() {
+      listenerNotificationCount++;
+    });
+
+    // Add valid package
+    await controller.addCustomPackage('com.example.app');
+    expect(controller.isPackageBlacklisted('com.example.app'), isTrue);
+    expect(controller.blacklist, contains('com.example.app'));
+    expect(lastUpdatedBlacklist, contains('com.example.app'));
+    expect(listenerNotificationCount, equals(1));
+
+    // Duplicate package ignored
+    await controller.addCustomPackage('com.example.app');
+    expect(listenerNotificationCount, equals(1));
+
+    // Whitespace trimmed duplicate ignored
+    await controller.addCustomPackage('  com.example.app  ');
+    expect(listenerNotificationCount, equals(1));
+
+    // Empty or whitespace-only package ignored
+    await controller.addCustomPackage('   ');
+    expect(listenerNotificationCount, equals(1));
+  });
+
+  test('AgentController removeCustomPackage removes package and updates bridge', () async {
+    await controller.init();
+    expect(controller.isPackageBlacklisted('com.instagram.android'), isTrue);
+
+    int listenerNotificationCount = 0;
+    controller.addListener(() {
+      listenerNotificationCount++;
+    });
+
+    await controller.removeCustomPackage('com.instagram.android');
+    expect(controller.isPackageBlacklisted('com.instagram.android'), isFalse);
+    expect(controller.blacklist, isNot(contains('com.instagram.android')));
+    expect(lastUpdatedBlacklist, isNot(contains('com.instagram.android')));
+    expect(listenerNotificationCount, equals(1));
   });
 }
