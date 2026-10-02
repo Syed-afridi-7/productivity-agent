@@ -117,5 +117,41 @@ class TestMemoryStore(unittest.TestCase):
             shutil.rmtree(tmp_dir, ignore_errors=True)
 
 
+    def test_daily_summary_cqs_and_save_daily_metrics(self):
+        t0 = time.time()
+        date_str = time.strftime("%Y-%m-%d", time.localtime(t0))
+        self.memory.start_focus_session(session_id="s-cqs", target_min=25, start_time=t0)
+        self.memory.end_focus_session(session_id="s-cqs", completed=True, end_time=t0 + 1500)
+
+        # 1. Pure query without side-effects (persist=False)
+        summary = self.memory.get_daily_summary(date_str, persist=False)
+        self.assertEqual(summary["total_focus_seconds"], 1500.0)
+        # Verify daily_metrics table was NOT written to
+        self.assertIsNone(self.memory.get_daily_metrics(date_str))
+
+        # 2. Explicit save_daily_metrics call
+        self.memory.save_daily_metrics(summary)
+        metrics = self.memory.get_daily_metrics(date_str)
+        self.assertIsNotNone(metrics)
+        self.assertEqual(metrics["total_focus_seconds"], 1500.0)
+
+        # 3. get_daily_summary with persist=True
+        summary2 = self.memory.get_daily_summary(date_str, persist=True)
+        metrics2 = self.memory.get_daily_metrics(date_str)
+        self.assertEqual(metrics2["total_focus_seconds"], 1500.0)
+
+    def test_get_focus_sessions_limit(self):
+        t0 = time.time()
+        for i in range(5):
+            self.memory.start_focus_session(session_id=f"s-lim-{i}", target_min=10, start_time=t0 + i * 100)
+            self.memory.end_focus_session(session_id=f"s-lim-{i}", completed=True, end_time=t0 + i * 100 + 600)
+
+        sessions_all = self.memory.get_focus_sessions()
+        self.assertEqual(len(sessions_all), 5)
+
+        sessions_limited = self.memory.get_focus_sessions(limit=2)
+        self.assertEqual(len(sessions_limited), 2)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -161,8 +161,9 @@ class MemoryStore:
     def get_focus_sessions(self, limit: Optional[int] = None) -> List[Dict[str, Any]]:
         query = "SELECT * FROM focus_sessions ORDER BY start_time DESC"
         if limit is not None:
-            query += f" LIMIT {int(limit)}"
-        cur = self.conn.execute(query)
+            cur = self.conn.execute(query + " LIMIT ?", (int(limit),))
+        else:
+            cur = self.conn.execute(query)
         return [dict(row) for row in cur.fetchall()]
 
     def record_daily_metrics(
@@ -195,7 +196,25 @@ class MemoryStore:
         row = cur.fetchone()
         return dict(row) if row else None
 
-    def get_daily_summary(self, date_str: Optional[str] = None) -> Dict[str, Any]:
+    def save_daily_metrics(self, summary: Dict[str, Any]) -> None:
+        date_str = summary.get("date")
+        if not date_str:
+            return
+        total_focus = float(summary.get("total_focus_seconds", summary.get("focus_time", 0.0)))
+        total_distraction = float(summary.get("total_distraction_seconds", summary.get("distraction_time", 0.0)))
+        total_violations = int(summary.get("total_violations", summary.get("violations_count", 0)))
+        sessions_completed = int(summary.get("sessions_completed", summary.get("completed_sessions", 0)))
+        productivity_score = float(summary.get("productivity_score", 0.0))
+        self.record_daily_metrics(
+            date_str=date_str,
+            total_focus_seconds=total_focus,
+            total_distraction_seconds=total_distraction,
+            total_violations=total_violations,
+            sessions_completed=sessions_completed,
+            productivity_score=productivity_score,
+        )
+
+    def get_daily_summary(self, date_str: Optional[str] = None, persist: bool = False) -> Dict[str, Any]:
         if not date_str or date_str.lower() == "today":
             date_str = time.strftime("%Y-%m-%d", time.localtime())
         else:
@@ -278,24 +297,7 @@ class MemoryStore:
         else:
             productivity_score = 0.0
 
-        # 5. Persist updated summary to daily_metrics
-        with self.conn:
-            self.conn.execute(
-                """
-                INSERT INTO daily_metrics 
-                (date, total_focus_seconds, total_distraction_seconds, total_violations, sessions_completed, productivity_score)
-                VALUES (?, ?, ?, ?, ?, ?)
-                ON CONFLICT(date) DO UPDATE SET
-                    total_focus_seconds = excluded.total_focus_seconds,
-                    total_distraction_seconds = excluded.total_distraction_seconds,
-                    total_violations = excluded.total_violations,
-                    sessions_completed = excluded.sessions_completed,
-                    productivity_score = excluded.productivity_score
-                """,
-                (date_str, total_focus, total_distraction_seconds, total_violations, completed_sessions, productivity_score)
-            )
-
-        return {
+        summary = {
             "date": date_str,
             "total_focus_seconds": total_focus,
             "focus_time": total_focus,
@@ -308,6 +310,12 @@ class MemoryStore:
             "total_sessions": total_sessions,
             "productivity_score": productivity_score,
         }
+
+        # 5. Optional persist to daily_metrics if requested
+        if persist:
+            self.save_daily_metrics(summary)
+
+        return summary
 
     def close(self) -> None:
         self.conn.close()

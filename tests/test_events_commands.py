@@ -1,6 +1,6 @@
 import unittest
 import time
-from dataclasses import FrozenInstanceError
+import dataclasses
 from core.events import Event, EventType
 from core.commands import Command, CommandType
 
@@ -30,11 +30,11 @@ class TestEventsAndCommands(unittest.TestCase):
 
     def test_frozen_immutability(self):
         evt = Event(event_id="evt-2", event_type=EventType.TICK)
-        with self.assertRaises(Exception):
+        with self.assertRaises(dataclasses.FrozenInstanceError):
             evt.event_id = "modified"
 
         cmd = Command(command_id="cmd-2", command_type=CommandType.NOTIFY)
-        with self.assertRaises(Exception):
+        with self.assertRaises(dataclasses.FrozenInstanceError):
             cmd.command_id = "modified"
 
     def test_enum_members(self):

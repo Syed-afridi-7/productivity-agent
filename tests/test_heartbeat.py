@@ -1,6 +1,5 @@
 import unittest
 import time
-import queue
 from core.events import Event, EventType
 from core.heartbeat import HeartbeatRunner
 
