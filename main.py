@@ -1,6 +1,7 @@
 import os
 import threading
 import time
+from typing import Optional
 
 from core.events import Event, EventType
 from core.memory import MemoryStore
@@ -13,9 +14,9 @@ from actuators.console_actuator import ConsoleActuator
 from cli import AgentCLI
 
 
-def main() -> None:
+def main(db_path: Optional[str] = None, interval_sec: float = 5.0) -> None:
     print("Initializing Productivity Agent Core (Phase 1)...")
-    db_path = os.path.join("data", "agent.db")
+    db_path = db_path or os.path.join("data", "agent.db")
     memory = MemoryStore(db_path=db_path)
     perception = PerceptionState()
     fsm = StateMachine(memory=memory)
@@ -34,8 +35,8 @@ def main() -> None:
     worker_thread = threading.Thread(target=pipeline.run_worker, daemon=True)
     worker_thread.start()
 
-    # Start heartbeat ticker (every 5 seconds)
-    heartbeat = HeartbeatRunner(pipeline=pipeline, interval_sec=5.0)
+    # Start heartbeat ticker
+    heartbeat = HeartbeatRunner(pipeline=pipeline, interval_sec=interval_sec)
     heartbeat.start()
 
     # Launch CLI

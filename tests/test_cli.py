@@ -21,6 +21,9 @@ class TestCLI(unittest.TestCase):
         self.pipeline = EventPipeline(self.memory, self.perception, self.fsm, self.rules)
         self.cli = AgentCLI(self.pipeline, self.fsm, self.perception, self.memory, self.rules)
 
+    def tearDown(self):
+        self.memory.close()
+
     def test_cli_command_dispatch_status_and_focus(self):
         output = self.cli.execute_command("status")
         self.assertIn("=== AGENT STATUS ===", output)
@@ -61,6 +64,11 @@ class TestCLI(unittest.TestCase):
         self.assertIn("Simulated switch to app: chrome", res)
         self.pipeline.process_event(self.pipeline.queue.get())
         self.assertEqual(self.perception.current_app, "chrome")
+
+        res_multi = self.cli.execute_command("app Visual Studio Code")
+        self.assertIn("Simulated switch to app: Visual Studio Code", res_multi)
+        self.pipeline.process_event(self.pipeline.queue.get())
+        self.assertEqual(self.perception.current_app, "Visual Studio Code")
 
     def test_cli_screen_command(self):
         usage = self.cli.execute_command("screen")
@@ -170,11 +178,24 @@ class TestCLI(unittest.TestCase):
                 self.assertIn("Productivity Agent Core Engine CLI", output)
                 self.assertIn("Shutting down CLI...", output)
 
+    def test_cli_invalid_numeric_arguments(self):
+        self.assertEqual(self.cli.execute_command("focus abc"), "Usage: focus <positive_minutes: int>")
+        self.assertEqual(self.cli.execute_command("focus 0"), "Usage: focus <positive_minutes: int>")
+        self.assertEqual(self.cli.execute_command("focus -5"), "Usage: focus <positive_minutes: int>")
+
+        self.assertEqual(self.cli.execute_command("break xyz"), "Usage: break <positive_minutes: int>")
+        self.assertEqual(self.cli.execute_command("break 0"), "Usage: break <positive_minutes: int>")
+        self.assertEqual(self.cli.execute_command("break -10"), "Usage: break <positive_minutes: int>")
+
+        self.assertEqual(self.cli.execute_command("tick bad"), "Usage: tick <positive_seconds: float>")
+        self.assertEqual(self.cli.execute_command("tick 0"), "Usage: tick <positive_seconds: float>")
+        self.assertEqual(self.cli.execute_command("tick -2.5"), "Usage: tick <positive_seconds: float>")
+
     def test_main_bootstrap(self):
         import main
         with patch("cli.AgentCLI.run_loop", return_value=None):
             with patch("sys.stdout", new=io.StringIO()) as fake_out:
-                main.main()
+                main.main(db_path=":memory:", interval_sec=0.1)
                 output = fake_out.getvalue()
                 self.assertIn("Initializing Productivity Agent Core", output)
                 self.assertIn("Agent cleanly stopped.", output)

@@ -52,7 +52,14 @@ class AgentCLI:
             )
 
         elif cmd == "focus":
-            min_dur = int(args[0]) if args else 25
+            min_dur = 25
+            if args:
+                try:
+                    min_dur = int(args[0])
+                    if min_dur <= 0:
+                        raise ValueError()
+                except ValueError:
+                    return "Usage: focus <positive_minutes: int>"
             evt = Event(
                 event_id=f"cli-{uuid.uuid4().hex[:8]}",
                 event_type=EventType.USER_COMMAND,
@@ -62,7 +69,14 @@ class AgentCLI:
             return f"Initiated {min_dur}m Deep Focus session."
 
         elif cmd == "break":
-            min_dur = int(args[0]) if args else 5
+            min_dur = 5
+            if args:
+                try:
+                    min_dur = int(args[0])
+                    if min_dur <= 0:
+                        raise ValueError()
+                except ValueError:
+                    return "Usage: break <positive_minutes: int>"
             evt = Event(
                 event_id=f"cli-{uuid.uuid4().hex[:8]}",
                 event_type=EventType.USER_COMMAND,
@@ -83,7 +97,7 @@ class AgentCLI:
         elif cmd == "app":
             if not args:
                 return "Usage: app <app_name>"
-            app_name = args[0]
+            app_name = " ".join(args)
             evt = Event(
                 event_id=f"cli-{uuid.uuid4().hex[:8]}",
                 event_type=EventType.APP_FOREGROUND,
@@ -105,7 +119,14 @@ class AgentCLI:
             return f"Simulated screen state: {'ON' if is_on else 'OFF'}"
 
         elif cmd == "tick":
-            sec = float(args[0]) if args else 5.0
+            sec = 5.0
+            if args:
+                try:
+                    sec = float(args[0])
+                    if sec <= 0:
+                        raise ValueError()
+                except ValueError:
+                    return "Usage: tick <positive_seconds: float>"
             evt = Event(
                 event_id=f"cli-{uuid.uuid4().hex[:8]}",
                 event_type=EventType.TICK,
