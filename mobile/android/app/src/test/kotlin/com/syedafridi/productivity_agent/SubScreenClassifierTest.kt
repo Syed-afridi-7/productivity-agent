@@ -139,5 +139,6 @@ class SubScreenClassifierTest {
         assertTrue(SubScreenClassifier.isWhitelistedActivity("com.google.android.googlequicksearchbox"))
         assertTrue(SubScreenClassifier.isWhitelistedActivity("com.openai.chatgpt"))
         assertFalse(SubScreenClassifier.isWhitelistedActivity("com.instagram.android"))
+        assertFalse(SubScreenClassifier.isWhitelistedActivity("com.android.chrome"))
     }
 }

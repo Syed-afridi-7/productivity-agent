@@ -11,7 +11,7 @@ object SubScreenClassifier {
         "com.android.dialer",
         "com.android.phone",
         "com.google.android.googlequicksearchbox",
-        "com.android.chrome",
+        // com.android.chrome REMOVED — browsers now monitored by ContentIntelligenceEngine
         "com.google.android.apps.messaging",
         "com.samsung.android.messaging",
         "com.openai.chatgpt",

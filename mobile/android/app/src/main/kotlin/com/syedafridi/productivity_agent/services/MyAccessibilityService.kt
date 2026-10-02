@@ -11,6 +11,7 @@ import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
 import com.syedafridi.productivity_agent.bus.AgentFocusState
 import com.syedafridi.productivity_agent.bus.NativeAgentBus
+import com.syedafridi.productivity_agent.ui.ProductivityWarningOverlay
 import com.syedafridi.productivity_agent.ui.ShieldOverlayView
 
 class MyAccessibilityService : AccessibilityService() {
@@ -18,7 +19,8 @@ class MyAccessibilityService : AccessibilityService() {
     enum class ActiveTrackingMode {
         NONE,
         GAMING,
-        REELS
+        REELS,
+        CONTENT_MONITORING  // YouTube long-form / Browser — grace period active
     }
 
     companion object {
@@ -27,6 +29,7 @@ class MyAccessibilityService : AccessibilityService() {
 
     private var lastPackageName: String? = null
     private var currentOverlayView: ShieldOverlayView? = null
+    private var currentWarningOverlay: ProductivityWarningOverlay? = null
     private var windowManager: WindowManager? = null
 
     private var activeTrackingMode = ActiveTrackingMode.NONE
@@ -57,6 +60,37 @@ class MyAccessibilityService : AccessibilityService() {
                         kickToHome(currentTrackedPackage ?: "unknown_game", "GAMING_QUOTA_EXHAUSTED")
                     }
                 }
+                ActiveTrackingMode.CONTENT_MONITORING -> {
+                    // Check if grace period (60s) has expired → show warning
+                    if (ContentGraceMonitor.currentState == GraceState.GRACE_PERIOD &&
+                        ContentGraceMonitor.isGracePeriodExpired()) {
+                        try {
+                            Log.w(TAG, "Grace period expired for ${currentTrackedPackage}. Showing warning.")
+                        } catch (_: Throwable) {}
+                        ContentGraceMonitor.startWarningPhase()
+                        NativeAgentBus.emit(
+                            mapOf(
+                                "type" to "CONTENT_WARNING",
+                                "packageName" to (currentTrackedPackage ?: "unknown"),
+                                "message" to "Are you being productive?",
+                                "timestamp" to System.currentTimeMillis()
+                            )
+                        )
+                        if (Settings.canDrawOverlays(this@MyAccessibilityService)) {
+                            showProductivityWarningOverlay()
+                        }
+                    }
+                    // Check if warning phase (30s) has expired → kick out
+                    if (ContentGraceMonitor.currentState == GraceState.WARNING_PHASE &&
+                        ContentGraceMonitor.isWarningExpired()) {
+                        try {
+                            Log.w(TAG, "Warning expired. Blocking ${currentTrackedPackage}.")
+                        } catch (_: Throwable) {}
+                        dismissProductivityWarning()
+                        ContentGraceMonitor.deactivate()
+                        kickToHome(currentTrackedPackage ?: "unknown", "CONTENT_GRACE_EXPIRED")
+                    }
+                }
                 // REELS tracking removed — Reels/Shorts are now instant zero-tolerance blocked
                 ActiveTrackingMode.REELS,
                 ActiveTrackingMode.NONE -> {}
@@ -85,6 +119,8 @@ class MyAccessibilityService : AccessibilityService() {
 
     /** Centralised Home kickout — always resets tracking state. */
     private fun kickToHome(pkgName: String, reason: String) {
+        dismissProductivityWarning()
+        ContentGraceMonitor.deactivate()
         performGlobalAction(GLOBAL_ACTION_HOME)
         lastPackageName = null                       // ← fixes second-launch bypass
         activeTrackingMode = ActiveTrackingMode.NONE
@@ -100,11 +136,55 @@ class MyAccessibilityService : AccessibilityService() {
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
-        if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
-            val pkgName = event.packageName?.toString() ?: return
+        val eventType = event.eventType
+        val pkgName = event.packageName?.toString() ?: return
+
+        // Handle TYPE_WINDOW_CONTENT_CHANGED for active content monitoring
+        if (eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED) {
+            if (ContentGraceMonitor.isGracePeriodActive() &&
+                ContentIntelligenceEngine.isContentMonitoredApp(pkgName)) {
+                val contentDesc = event.contentDescription?.toString()
+                val text = event.text?.joinToString(" ")
+                val className = event.className?.toString()
+                if (contentDesc != null || text != null) {
+                    val verdict = ContentIntelligenceEngine.classify(pkgName, contentDesc, className, text)
+                    when (verdict) {
+                        ContentVerdict.PRODUCTIVE -> {
+                            try {
+                                Log.i(TAG, "Content re-classified PRODUCTIVE (content change). Allowing.")
+                            } catch (_: Throwable) {}
+                            dismissProductivityWarning()
+                            ContentGraceMonitor.markProductive()
+                            activeTrackingMode = ActiveTrackingMode.NONE
+                        }
+                        ContentVerdict.UNPRODUCTIVE -> {
+                            try {
+                                Log.w(TAG, "Content re-classified UNPRODUCTIVE (content change). Blocking.")
+                            } catch (_: Throwable) {}
+                            dismissProductivityWarning()
+                            ContentGraceMonitor.deactivate()
+                            kickToHome(pkgName, "CONTENT_UNPRODUCTIVE")
+                        }
+                        ContentVerdict.UNKNOWN -> { /* Keep waiting in grace period */ }
+                    }
+                }
+            }
+            return
+        }
+
+        if (eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
             val className = event.className?.toString()
             val contentDesc = event.contentDescription?.toString()
             val text = event.text?.joinToString(" ")
+
+            // Check if user navigated away from grace-monitored package
+            if (ContentGraceMonitor.isGracePeriodActive() &&
+                ContentGraceMonitor.trackedPackage != pkgName &&
+                !ContentIntelligenceEngine.isContentMonitoredApp(pkgName)) {
+                dismissProductivityWarning()
+                ContentGraceMonitor.deactivate()
+                activeTrackingMode = ActiveTrackingMode.NONE
+            }
 
             // 1. Zero-Tolerance Hard Block (Telegram, Netflix, Music apps, etc.)
             if (AutonomousQuotaManager.isHardBlocked(pkgName)) {
@@ -122,6 +202,7 @@ class MyAccessibilityService : AccessibilityService() {
                 try {
                     Log.i(TAG, "Direct Message / Chat active in $pkgName. Allowed without penalty.")
                 } catch (_: Throwable) {}
+                dismissProductivityWarning()
                 activeTrackingMode = ActiveTrackingMode.NONE
                 return
             }
@@ -133,6 +214,44 @@ class MyAccessibilityService : AccessibilityService() {
                 } catch (_: Throwable) {}
                 kickToHome(pkgName, "REELS_INSTANT_BLOCK")
                 return
+            }
+
+            // 3.5. Content Intelligence — YouTube long-form & Browsers
+            if (ContentIntelligenceEngine.isContentMonitoredApp(pkgName)) {
+                val verdict = ContentIntelligenceEngine.classify(pkgName, contentDesc, className, text)
+                when (verdict) {
+                    ContentVerdict.PRODUCTIVE -> {
+                        try {
+                            Log.i(TAG, "Content classified PRODUCTIVE in $pkgName. Allowing.")
+                        } catch (_: Throwable) {}
+                        dismissProductivityWarning()
+                        ContentGraceMonitor.markProductive()
+                        activeTrackingMode = ActiveTrackingMode.NONE
+                        return
+                    }
+                    ContentVerdict.UNPRODUCTIVE -> {
+                        try {
+                            Log.w(TAG, "Content classified UNPRODUCTIVE in $pkgName. Instant block.")
+                        } catch (_: Throwable) {}
+                        dismissProductivityWarning()
+                        ContentGraceMonitor.deactivate()
+                        kickToHome(pkgName, "CONTENT_UNPRODUCTIVE")
+                        return
+                    }
+                    ContentVerdict.UNKNOWN -> {
+                        // If not already in grace, start one
+                        if (!ContentGraceMonitor.isGracePeriodActive() &&
+                            ContentGraceMonitor.currentState != GraceState.PRODUCTIVE_CONFIRMED) {
+                            try {
+                                Log.i(TAG, "Content UNKNOWN in $pkgName. Starting 60s grace period.")
+                            } catch (_: Throwable) {}
+                            ContentGraceMonitor.startGracePeriod(pkgName)
+                            activeTrackingMode = ActiveTrackingMode.CONTENT_MONITORING
+                            currentTrackedPackage = pkgName
+                        }
+                        return
+                    }
+                }
             }
 
             // 4. Game Detection (30m daily quota)
@@ -149,7 +268,7 @@ class MyAccessibilityService : AccessibilityService() {
                 return
             }
 
-            // 5. System Whitelist (Dialer, Contacts, ChatGPT, Browser Search)
+            // 5. System Whitelist (Dialer, Contacts, ChatGPT, Google Search box)
             if (SubScreenClassifier.isWhitelistedActivity(pkgName)) {
                 activeTrackingMode = ActiveTrackingMode.NONE
                 return
@@ -254,6 +373,43 @@ class MyAccessibilityService : AccessibilityService() {
         }
     }
 
+    private fun showProductivityWarningOverlay() {
+        dismissProductivityWarning()
+        val params = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
+            PixelFormat.TRANSLUCENT
+        )
+        params.gravity = Gravity.TOP
+
+        val overlay = ProductivityWarningOverlay(
+            context = this,
+            onTimeExpired = {
+                dismissProductivityWarning()
+                ContentGraceMonitor.deactivate()
+                kickToHome(currentTrackedPackage ?: "unknown", "CONTENT_GRACE_EXPIRED")
+            },
+            onDismiss = { /* cleanup handled by dismissProductivityWarning */ }
+        )
+        currentWarningOverlay = overlay
+        try {
+            windowManager?.addView(overlay, params)
+        } catch (_: Throwable) {}
+    }
+
+    private fun dismissProductivityWarning() {
+        currentWarningOverlay?.let { overlay ->
+            overlay.dismiss()
+            try {
+                windowManager?.removeView(overlay)
+            } catch (_: Throwable) {}
+            currentWarningOverlay = null
+        }
+    }
+
     override fun onInterrupt() {
         try {
             Log.w(TAG, "MyAccessibilityService interrupted")
@@ -265,6 +421,7 @@ class MyAccessibilityService : AccessibilityService() {
     override fun onDestroy() {
         trackingHandler.removeCallbacks(trackingTicker)
         dismissOverlay()
+        dismissProductivityWarning()
         super.onDestroy()
     }
 }
