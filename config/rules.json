@@ -1,0 +1,16 @@
+{
+  "app_blacklist": [
+    "com.instagram.android",
+    "com.google.android.youtube",
+    "com.twitter.android",
+    "com.zhiliaoapp.musically",
+    "reddit",
+    "netflix"
+  ],
+  "max_daily_distraction_minutes": 45,
+  "night_winddown_time": "22:30",
+  "morning_start_time": "07:00",
+  "default_focus_duration_minutes": 25,
+  "default_break_duration_minutes": 5,
+  "cooldown_seconds": 60
+}
